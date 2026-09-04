@@ -1,0 +1,2 @@
+# Hanya jalan di Windows yang punya terminal MT5
+MetaTrader5>=5.0.40,<6

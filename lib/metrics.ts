@@ -1,0 +1,324 @@
+/**
+ * Mesin metrik ala Myfxbook — murni (pure functions), mudah di-unit-test.
+ * Semua fungsi menerima array polos (bukan objek Prisma) agar mudah diuji.
+ */
+
+export interface DealInput {
+  ticket: string;
+  positionId?: string | null;
+  symbol: string;
+  type: number; // 0=buy, 1=sell, 2=balance, 3=credit, ...
+  direction: number; // 0=in, 1=out, 2=inout
+  volume: number;
+  price: number;
+  profit: number;
+  commission: number | null;
+  swap: number | null;
+  fee: number | null;
+  time: Date | string;
+}
+
+export interface PositionInput {
+  ticket: string;
+  symbol: string;
+  type: number;
+  volume: number;
+  priceOpen: number;
+  sl?: number | null;
+  tp?: number | null;
+  priceCurrent: number;
+  profit: number;
+  swap?: number | null;
+  comment?: string | null;
+  magic?: number | null;
+  openTime: Date | string;
+}
+
+export interface SnapshotInput {
+  balance: number;
+  equity: number;
+  createdAt: Date | string;
+}
+
+export interface ClosedPosition {
+  positionId: string;
+  symbol: string;
+  volume: number;
+  openTime: Date;
+  closeTime: Date;
+  netProfit: number; // profit + komisi + swap + fee
+  rawProfit: number;
+  commission: number;
+  swap: number;
+}
+
+export interface MonthlyStat {
+  month: string; // "2026-09"
+  lots: number;
+  trades: number;
+  winRate: number | null; // 0..100
+  profit: number;
+  balance: number | null; // balance akhir bulan (snapshot bila ada)
+}
+
+export interface EquityPoint {
+  t: number; // epoch ms
+  balance: number;
+  equity: number;
+}
+
+export interface Metrics {
+  balance: number;
+  equity: number;
+  growthPct: number; // berdasar equity vs equity pertama
+  maxDrawdownPct: number;
+  currentDrawdownPct: number;
+  profitFactor: number | null; // null = belum ada profit maupun loss
+  winRatePct: number | null;
+  totalTrades: number;
+  totalLots: number;
+  netProfit: number;
+  monthly: MonthlyStat[];
+  equityCurve: EquityPoint[];
+  startBalance: number;
+  startEquity: number;
+}
+
+const asDate = (d: Date | string): Date => (d instanceof Date ? d : new Date(d));
+
+export function netProfitOf(d: DealInput): number {
+  return (
+    d.profit +
+    (d.commission ?? 0) +
+    (d.swap ?? 0) +
+    (d.fee ?? 0)
+  );
+}
+
+/** Konversi amount akun cent (USC) ke USD: USC / 100 */
+export function toUsd(amount: number, cent: boolean): number {
+  return cent ? amount / 100 : amount;
+}
+
+/** Kelompokkan deal jadi posisi tertutup (pasangan entry–exit per positionId). */
+export function buildClosedPositions(deals: DealInput[]): ClosedPosition[] {
+  const byPosition = new Map<string, DealInput[]>();
+  for (const d of deals) {
+    if (!d.positionId) continue;
+    const arr = byPosition.get(d.positionId) ?? [];
+    arr.push(d);
+    byPosition.set(d.positionId, arr);
+  }
+
+  const result: ClosedPosition[] = [];
+  for (const [positionId, arr] of byPosition) {
+    if (arr.length < 2) continue; // butuh minimal entry + exit
+    let net = 0;
+    let raw = 0;
+    let commission = 0;
+    let swap = 0;
+    let volume = 0;
+    let openTime: Date | null = null;
+    let closeTime: Date | null = null;
+    let symbol = "";
+    for (const d of arr) {
+      net += netProfitOf(d);
+      raw += d.profit;
+      commission += d.commission ?? 0;
+      swap += d.swap ?? 0;
+      const t = asDate(d.time);
+      if (!openTime || t < openTime) openTime = t;
+      if (!closeTime || t > closeTime) closeTime = t;
+      if (d.volume > volume) {
+        volume = d.volume;
+        symbol = d.symbol;
+      }
+    }
+    if (!openTime || !closeTime) continue;
+    result.push({
+      positionId,
+      symbol,
+      volume,
+      openTime,
+      closeTime,
+      netProfit: net,
+      rawProfit: raw,
+      commission,
+      swap,
+    });
+  }
+  result.sort((a, b) => a.closeTime.getTime() - b.closeTime.getTime());
+  return result;
+}
+
+const monthKeyOf = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+export function monthKey(d: Date | string): string {
+  return monthKeyOf(asDate(d));
+}
+
+/** Hitung semua metrik utama dari data akun. */
+export function computeMetrics(
+  deals: DealInput[],
+  positions: PositionInput[],
+  snapshots: SnapshotInput[],
+  opts: { cent?: boolean } = {}
+): Metrics {
+  const cent = opts.cent ?? false;
+  const closed = buildClosedPositions(deals);
+
+  // ---- snapshot terurut ----
+  const snaps = [...snapshots]
+    .map((s) => ({
+      balance: s.balance,
+      equity: s.equity,
+      t: asDate(s.createdAt).getTime(),
+    }))
+    .sort((a, b) => a.t - b.t);
+
+  const startBalance = snaps.length > 0 ? snaps[0].balance : 0;
+  const startEquity = snaps.length > 0 ? snaps[0].equity : startBalance;
+
+  const lastSnap = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+  const balance = lastSnap?.balance ?? startBalance;
+  const equity = lastSnap?.equity ?? startBalance;
+
+  // ---- drawdown dari equity curve ----
+  let runningMax = -Infinity;
+  let maxDD = 0;
+  for (const s of snaps) {
+    if (s.equity > runningMax) runningMax = s.equity;
+    if (runningMax > 0) {
+      const dd = ((runningMax - s.equity) / runningMax) * 100;
+      if (dd > maxDD) maxDD = dd;
+    }
+  }
+  const currentDD =
+    runningMax > 0 ? ((runningMax - equity) / runningMax) * 100 : 0;
+
+  // ---- growth (equity) ----
+  const growthPct =
+    startEquity !== 0 ? ((equity - startEquity) / Math.abs(startEquity)) * 100 : 0;
+
+  // ---- win rate & profit factor dari posisi tertutup ----
+  const totalTrades = closed.length;
+  const wins = closed.filter((c) => c.netProfit > 0).length;
+  const grossProfit = closed
+    .filter((c) => c.netProfit > 0)
+    .reduce((s, c) => s + c.netProfit, 0);
+  const grossLoss = Math.abs(
+    closed.filter((c) => c.netProfit < 0).reduce((s, c) => s + c.netProfit, 0)
+  );
+  const winRatePct = totalTrades > 0 ? (wins / totalTrades) * 100 : null;
+  const profitFactor =
+    grossLoss === 0 ? (grossProfit > 0 ? Infinity : grossProfit === 0 ? null : 0) : grossProfit / grossLoss;
+  const netProfit = closed.reduce((s, c) => s + c.netProfit, 0);
+
+  // ---- total lots: volume deal buy/sell / 2 (tiap posisi dihitung sekali) ----
+  const totalLots =
+    deals
+      .filter((d) => d.type === 0 || d.type === 1)
+      .reduce((s, d) => s + d.volume, 0) / 2;
+
+  // ---- statistik bulanan ----
+  // kumpulkan semua bulan yang muncul (dari deal & posisi tertutup)
+  const monthSet = new Set<string>();
+  for (const d of deals) monthSet.add(monthKeyOf(asDate(d.time)));
+  for (const c of closed) monthSet.add(monthKeyOf(c.closeTime));
+
+  const monthlyMap = new Map<string, MonthlyStat>();
+  for (const key of monthSet) {
+    monthlyMap.set(key, {
+      month: key,
+      lots: 0,
+      trades: 0,
+      winRate: 0,
+      profit: 0,
+      balance: null,
+    });
+  }
+
+  for (const c of closed) {
+    const m = monthlyMap.get(monthKeyOf(c.closeTime))!;
+    m.trades += 1;
+    m.profit += c.netProfit;
+    if (c.netProfit > 0) m.winRate = (m.winRate ?? 0) + 1; // sementara: hitung wins dulu
+  }
+  // lots per bulan: total volume deal buy/sell / 2 (tiap round-trip dihitung sekali)
+  for (const d of deals) {
+    if (d.type !== 0 && d.type !== 1) continue;
+    const m = monthlyMap.get(monthKeyOf(asDate(d.time)));
+    if (m) m.lots += d.volume / 2;
+  }
+  // balance akhir bulan + win rate final
+  const monthly = [...monthlyMap.values()].sort((a, b) =>
+    a.month.localeCompare(b.month)
+  );
+  let cumulative = startBalance;
+  for (const m of monthly) {
+    if (m.trades > 0) m.winRate = ((m.winRate ?? 0) / m.trades) * 100;
+    else m.winRate = null;
+    cumulative += m.profit;
+    // cari snapshot terakhir dalam bulan tsb
+    const endOfMonth = new Date(
+      Number(m.month.slice(0, 4)),
+      Number(m.month.slice(5, 7)),
+      1,
+      0,
+      0,
+      0,
+      0
+    ).getTime();
+    const startOfMonth = new Date(
+      Number(m.month.slice(0, 4)),
+      Number(m.month.slice(5, 7)) - 1,
+      1
+    ).getTime();
+    const snapInMonth = snaps
+      .filter((s) => s.t >= startOfMonth && s.t < endOfMonth)
+      .sort((a, b) => b.t - a.t)[0];
+    m.balance = snapInMonth ? snapInMonth.balance : cumulative;
+  }
+
+  // ---- equity curve ----
+  const equityCurve: EquityPoint[] = snaps.map((s) => ({
+    t: s.t,
+    balance: s.balance,
+    equity: s.equity,
+  }));
+
+  return {
+    balance,
+    equity,
+    growthPct,
+    maxDrawdownPct: maxDD,
+    currentDrawdownPct: currentDD,
+    profitFactor,
+    winRatePct,
+    totalTrades,
+    totalLots,
+    netProfit,
+    monthly,
+    equityCurve,
+    startBalance,
+    startEquity,
+  };
+}
+
+/** Statistik singkat untuk posisi terbuka (untuk tabel & kartu). */
+export function openPositionsSummary(
+  positions: PositionInput[],
+  opts: { cent?: boolean } = {}
+): { count: number; volume: number; profit: number; swap: number } {
+  return positions.reduce(
+    (acc, p) => {
+      acc.count += 1;
+      acc.volume += p.volume;
+      acc.profit += p.profit;
+      acc.swap += p.swap ?? 0;
+      return acc;
+    },
+    { count: 0, volume: 0, profit: 0, swap: 0 }
+  );
+}

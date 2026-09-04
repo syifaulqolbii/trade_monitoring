@@ -1,0 +1,16 @@
+{
+  "app_url": "http://localhost:3000",
+  "interval": 30,
+  "history_days": 365,
+  "terminal_path": null,
+  "accounts": [
+    {
+      "name": "Akun Utama",
+      "login": 12345678,
+      "attach_existing": true,
+      "password": null,
+      "server": null,
+      "token": "GANTI_DENGAN_TOKEN_DARI_HALAMAN_AKUN"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+// Prisma schema — Freebuff Monitor
+// Database: SQLite
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id           String   @id @default(cuid())
+  name         String // label / nickname akun
+  broker       String
+  login        String
+  server       String
+  investorPass String? // terenkripsi AES-256-GCM
+  cent         Boolean  @default(false) // true = akun cent (USC)
+  token        String   @unique // token untuk bridge
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // info hasil sinkronisasi dari terminal MT5
+  balance    Float?
+  equity     Float?
+  margin     Float?
+  freeMargin Float?
+  currency   String?
+  leverage   String?
+  company    String?
+  lastSyncAt DateTime?
+
+  positions Position[]
+  deals     Deal[]
+  snapshots Snapshot[]
+
+  @@index([cent])
+}
+
+model Position {
+  id          String  @id @default(cuid())
+  accountId   String
+  account     Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ticket      String
+  symbol      String
+  type        Int // 0 = buy, 1 = sell
+  volume      Float
+  priceOpen   Float
+  sl          Float?
+  tp          Float?
+  priceCurrent Float
+  profit      Float
+  swap        Float?
+  comment     String?
+  magic       Int?
+  openTime    DateTime
+
+  @@unique([accountId, ticket])
+  @@index([accountId])
+}
+
+model Deal {
+  id         String  @id @default(cuid())
+  accountId  String
+  account    Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ticket     String // deal ticket dari MT
+  positionId String? // ticket posisi terkait
+  symbol     String
+  type       Int // 0=buy, 1=sell, 2=balance, 3=credit, ...
+  direction  Int // 0=in, 1=out, 2=inout, -1=-
+  volume     Float
+  price      Float
+  profit     Float
+  commission Float?
+  swap       Float?
+  fee        Float?
+  comment    String?
+  magic      Int?
+  time       DateTime
+
+  @@unique([accountId, ticket])
+  @@index([accountId, time])
+  @@index([accountId, positionId])
+}
+
+model Snapshot {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  balance   Float
+  equity    Float
+  margin    Float?
+  freeMargin Float?
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+}
