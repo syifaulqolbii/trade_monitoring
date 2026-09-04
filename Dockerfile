@@ -30,13 +30,12 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Prisma CLI + engines (untuk inisialisasi skema DB saat container start).
-# @prisma/engines juga berisi query engine runtime yang dibutuhkan @prisma/client.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
-COPY --from=builder /app/node_modules/@prisma/config ./node_modules/@prisma/config
+# Salin SELURUH node_modules dari builder (hasil npm ci) supaya Prisma CLI
+# beserta seluruh dependensi transitifnya (@prisma/engines, @prisma/config,
+# dll.) tersedia untuk `prisma db push` saat container start. Standalone
+# server hanya butuh subset — superset dengan versi identik selalu aman.
+COPY --from=builder /app/node_modules ./node_modules
 
 # SQLite tersimpan di volume (/app/data) agar tidak hilang saat container restart
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
