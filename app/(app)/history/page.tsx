@@ -40,11 +40,19 @@ interface HistoryRow {
   swap: number;
 }
 
-/** Kelompokkan deal jadi trade tertutup (entry+exit per posisi). */
+/** Kelompokkan deal jadi trade tertutup (entry+exit per posisi).
+ *  Deposit/withdrawal/bonus punya position_id = 0 di MT5 (string "0" setelah
+ *  sync) — harus dilewati, bukan posisi trading. */
+function isPositionDeal(d: DealRow): d is DealRow & { positionId: string } {
+  if (!d.positionId || d.positionId === "0") return false;
+  if (d.type === 2 || d.type === 3) return false; // balance/credit
+  return true;
+}
+
 function buildHistory(deals: DealRow[]): HistoryRow[] {
   const byPos = new Map<string, DealRow[]>();
   for (const d of deals) {
-    if (!d.positionId) continue;
+    if (!isPositionDeal(d)) continue;
     const arr = byPos.get(d.positionId) ?? [];
     arr.push(d);
     byPos.set(d.positionId, arr);

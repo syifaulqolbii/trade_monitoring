@@ -107,11 +107,21 @@ export function toStdLots(lots: number, cent: boolean): number {
   return cent ? lots / 100 : lots;
 }
 
+/** Deal yang benar-benar bagian dari posisi trading.
+ *  Deposit/withdrawal/bonus (balance & credit op) di MT5 punya position_id = 0 —
+ *  bukan posisi, tidak boleh dihitung sebagai profit (ala Myfxbook: deposit
+ *  tidak masuk Net Profit). Guard lama (!d.positionId) tidak menangkap string "0". */
+function isPositionDeal(d: DealInput): d is DealInput & { positionId: string } {
+  if (!d.positionId || d.positionId === "0") return false;
+  if (d.type === 2 || d.type === 3) return false; // balance/credit — jaga-jaga
+  return true;
+}
+
 /** Kelompokkan deal jadi posisi tertutup (pasangan entry–exit per positionId). */
 export function buildClosedPositions(deals: DealInput[]): ClosedPosition[] {
   const byPosition = new Map<string, DealInput[]>();
   for (const d of deals) {
-    if (!d.positionId) continue;
+    if (!isPositionDeal(d)) continue;
     const arr = byPosition.get(d.positionId) ?? [];
     arr.push(d);
     byPosition.set(d.positionId, arr);

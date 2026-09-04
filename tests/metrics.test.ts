@@ -100,6 +100,46 @@ describe("buildClosedPositions", () => {
     const deals = [deal({ positionId: "50", direction: 0 })];
     expect(buildClosedPositions(deals)).toHaveLength(0);
   });
+
+  it("tidak menganggap deposit/withdrawal (position_id 0) sebagai posisi", () => {
+    // deposit 30.000 USC + withdrawal — di MT5 keduanya position_id = 0 (string "0")
+    const deals = [
+      deal({
+        ticket: "bal-1",
+        positionId: "0",
+        type: 2,
+        direction: 0,
+        volume: 0,
+        symbol: "",
+        profit: 30000,
+        time: d("2026-01-01T08:00:00Z"),
+      }),
+      deal({
+        ticket: "bal-2",
+        positionId: "0",
+        type: 2,
+        direction: 1,
+        volume: 0,
+        symbol: "",
+        profit: -500,
+        time: d("2026-01-02T08:00:00Z"),
+      }),
+      deal({
+        ticket: "bal-3",
+        positionId: null, // sebagian broker null, bukan "0"
+        type: 3,
+        direction: 0,
+        volume: 0,
+        symbol: "",
+        profit: 1000,
+        time: d("2026-01-03T08:00:00Z"),
+      }),
+      ...closedPosition("100", "2026-01-05T08:00:00Z", "2026-01-06T08:00:00Z", 1250),
+    ];
+    const closed = buildClosedPositions(deals);
+    expect(closed).toHaveLength(1);
+    expect(closed[0].positionId).toBe("100");
+  });
 });
 
 describe("computeMetrics", () => {
@@ -123,6 +163,20 @@ describe("computeMetrics", () => {
     ];
     const m = computeMetrics(deals, [], []);
     expect(m.profitFactor).toBe(Infinity);
+  });
+
+  it("net profit TIDAK termasuk deposit/withdrawal/bonus", () => {
+    const deals = [
+      // 2+ op balance dengan position_id "0" — dulu membentuk posisi palsu ~30.500
+      deal({ ticket: "b1", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 30000, time: d("2026-01-01T08:00:00Z") }),
+      deal({ ticket: "b2", positionId: "0", type: 2, direction: 1, volume: 0, symbol: "", profit: -500, time: d("2026-01-02T08:00:00Z") }),
+      deal({ ticket: "b3", positionId: "0", type: 3, direction: 0, volume: 0, symbol: "", profit: 1000, time: d("2026-01-03T08:00:00Z") }),
+      ...closedPosition("100", "2026-01-05T08:00:00Z", "2026-01-06T08:00:00Z", 1250),
+    ];
+    const m = computeMetrics(deals, [], []);
+    expect(m.netProfit).toBe(1250); // bukan 1250 + 30500
+    expect(m.totalTrades).toBe(1);
+    expect(m.winRatePct).toBe(100);
   });
 
   it("growth berdasar equity snapshot pertama vs terakhir", () => {
