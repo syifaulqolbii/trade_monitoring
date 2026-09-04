@@ -1,5 +1,5 @@
 {
-  "app_url": "http://localhost:3000",
+  "app_url": "https://ganti-dengan-domain-kamu.com",
   "interval": 30,
   "history_days": 365,
   "terminal_path": null,

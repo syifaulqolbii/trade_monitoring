@@ -44,7 +44,7 @@ Lalu edit `config.json`:
 
 | Field              | Isi                                                                 |
 | ------------------ | ------------------------------------------------------------------- |
-| `app_url`          | URL web app, mis. `https://monitor.domainkamu.com`                  |
+| `app_url`          | URL web app. **Web di VPS Linux + MT5 di VPS Windows = pakai domain publik**, mis. `https://monitor.domainkamu.com` — *jangan* `localhost` (itu menunjuk ke mesin bridge sendiri). `http://localhost:3000` hanya untuk uji lokal bila web app & bridge di mesin yang sama |
 | `interval`         | Detik antar sinkronisasi (default `30`)                             |
 | `history_days`     | Berapa hari ke belakang deal history diambil saat pertama jalan     |
 | `terminal_path`    | Opsional. Path `terminal64.exe`, mis. `C:\Program Files\ICMarkets\terminal64.exe` |
