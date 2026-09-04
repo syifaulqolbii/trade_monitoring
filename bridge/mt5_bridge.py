@@ -102,7 +102,11 @@ def clean(v, default=None):
 def iso(dt):
     if dt is None:
         return None
-    if dt.tzinfo is None:
+    # MT5 mengembalikan waktu sebagai datetime di sebagian versi paket,
+    # tapi sebagai int (unix detik) di versi lain — tangani keduanya.
+    if isinstance(dt, (int, float)):
+        dt = datetime.fromtimestamp(dt, tz=timezone.utc)
+    elif dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
