@@ -323,6 +323,81 @@ export function computeMetrics(
   };
 }
 
+/* ============================================================
+ * Ekstra untuk dashboard: kurva growth/drawdown & distribusi simbol
+ * ============================================================ */
+
+export interface GrowthDDPoint {
+  t: number; // epoch ms
+  growthPct: number; // relatif thd equity pertama dalam rentang
+  ddPct: number; // underwater drawdown NEGATIF: -(peak-equity)/peak*100
+}
+
+/** Kurva "pertumbuhan relatif" + "underwater drawdown" per snapshot. */
+export function growthDrawdownSeries(
+  snapshots: SnapshotInput[]
+): GrowthDDPoint[] {
+  const snaps = [...snapshots]
+    .map((s) => ({ equity: s.equity, t: asDate(s.createdAt).getTime() }))
+    .sort((a, b) => a.t - b.t);
+  if (snaps.length === 0) return [];
+  const first = snaps[0].equity;
+  let runningMax = -Infinity;
+  const out: GrowthDDPoint[] = [];
+  for (const s of snaps) {
+    if (s.equity > runningMax) runningMax = s.equity;
+    const growthPct =
+      first !== 0 ? ((s.equity - first) / Math.abs(first)) * 100 : 0;
+    const ddPct =
+      runningMax > 0 ? -((runningMax - s.equity) / runningMax) * 100 : 0;
+    out.push({ t: s.t, growthPct, ddPct });
+  }
+  return out;
+}
+
+export interface SymbolStat {
+  symbol: string;
+  lots: number; // lot round-trip (entry volume)
+  volumeShare: number; // 0..100
+  wins: number;
+  losses: number;
+  winRate: number | null; // 0..100
+  pnl: number; // net (termasuk komisi/swap/fee)
+}
+
+/** Statistik per simbol dari posisi tertutup (untuk kartu distribusi). */
+export function symbolStats(deals: DealInput[]): SymbolStat[] {
+  const closed = buildClosedPositions(deals);
+  const bySymbol = new Map<string, SymbolStat>();
+  for (const c of closed) {
+    const s =
+      bySymbol.get(c.symbol) ??
+      ({
+        symbol: c.symbol,
+        lots: 0,
+        volumeShare: 0,
+        wins: 0,
+        losses: 0,
+        winRate: null,
+        pnl: 0,
+      } as SymbolStat);
+    s.lots += c.volume;
+    s.pnl += c.netProfit;
+    if (c.netProfit > 0) s.wins += 1;
+    else if (c.netProfit < 0) s.losses += 1;
+    bySymbol.set(c.symbol, s);
+  }
+  const list = [...bySymbol.values()];
+  const totalLots = list.reduce((acc, s) => acc + s.lots, 0);
+  for (const s of list) {
+    s.volumeShare = totalLots > 0 ? (s.lots / totalLots) * 100 : 0;
+    const n = s.wins + s.losses;
+    s.winRate = n > 0 ? (s.wins / n) * 100 : null;
+  }
+  list.sort((a, b) => b.pnl - a.pnl || b.lots - a.lots);
+  return list;
+}
+
 /** Statistik singkat untuk posisi terbuka (untuk tabel & kartu). */
 export function openPositionsSummary(
   positions: PositionInput[],

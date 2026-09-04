@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeMetrics,
   buildClosedPositions,
+  growthDrawdownSeries,
+  symbolStats,
   toUsd,
   toStdLots,
   netProfitOf,
@@ -254,6 +256,61 @@ describe("computeMetrics", () => {
     const m = computeMetrics([], [pos], snaps, { cent: true });
     expect(m.balance).toBe(100000);
     expect(toUsd(m.equity, true)).toBe(1010);
+  });
+});
+
+describe("growthDrawdownSeries", () => {
+  it("growth relatif thd equity pertama & dd negatif dari running peak", () => {
+    const snaps: SnapshotInput[] = [
+      { balance: 1000, equity: 1000, createdAt: d("2026-01-01T00:00:00Z") },
+      { balance: 1000, equity: 1200, createdAt: d("2026-01-02T00:00:00Z") },
+      { balance: 1000, equity: 900, createdAt: d("2026-01-03T00:00:00Z") },
+    ];
+    const series = growthDrawdownSeries(snaps);
+    expect(series).toHaveLength(3);
+    expect(series[0].growthPct).toBeCloseTo(0, 5);
+    expect(series[0].ddPct).toBeCloseTo(0, 5);
+    expect(series[1].growthPct).toBeCloseTo(20, 5); // 1200 vs 1000
+    expect(series[1].ddPct).toBeCloseTo(0, 5); // masih di peak
+    expect(series[2].growthPct).toBeCloseTo(-10, 5);
+    expect(series[2].ddPct).toBeCloseTo(-25, 5); // (1200-900)/1200
+  });
+
+  it("kembalikan array kosong tanpa snapshot", () => {
+    expect(growthDrawdownSeries([])).toHaveLength(0);
+  });
+});
+
+describe("symbolStats", () => {
+  it("agregasi pnl, volume share dan win rate per simbol", () => {
+    const withSymbol = (
+      sym: string,
+      pair: [DealInput, DealInput]
+    ): DealInput[] => pair.map((dd) => ({ ...dd, symbol: sym }));
+    const deals = [
+      ...withSymbol("XAUUSD", closedPosition("1", "2026-01-01T08:00:00Z", "2026-01-02T08:00:00Z", 100, 1)),
+      ...withSymbol("XAUUSD", closedPosition("2", "2026-01-03T08:00:00Z", "2026-01-04T08:00:00Z", -20, 1)),
+      ...withSymbol("EURUSD", closedPosition("3", "2026-01-05T08:00:00Z", "2026-01-06T08:00:00Z", 50, 3)),
+    ];
+    const stats = symbolStats(deals);
+    expect(stats).toHaveLength(2);
+    const xau = stats.find((s) => s.symbol === "XAUUSD")!;
+    const eur = stats.find((s) => s.symbol === "EURUSD")!;
+    expect(xau.pnl).toBe(80);
+    expect(xau.winRate).toBeCloseTo(50, 5);
+    expect(xau.lots).toBe(2);
+    expect(eur.pnl).toBe(50);
+    expect(eur.volumeShare).toBeCloseTo(60, 5); // 3/(2+3)
+    // urut: pnl terbesar dulu
+    expect(stats[0].symbol).toBe("XAUUSD");
+  });
+
+  it("mengabaikan deposit & posisi belum tertutup", () => {
+    const deals = [
+      deal({ ticket: "b", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 99999 }),
+      deal({ positionId: "open", direction: 0 }), // cuma entry
+    ];
+    expect(symbolStats(deals)).toHaveLength(0);
   });
 });
 

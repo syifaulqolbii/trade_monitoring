@@ -1,8 +1,12 @@
 import { prisma } from "./prisma";
 import {
   computeMetrics,
+  growthDrawdownSeries,
   openPositionsSummary,
+  symbolStats,
+  type GrowthDDPoint,
   type Metrics,
+  type SymbolStat,
 } from "./metrics";
 
 export async function listAccountsForPicker() {
@@ -31,16 +35,28 @@ export interface AccountWithMetrics {
   lastSyncAt: Date | null;
   metrics: Metrics;
   openSummary: { count: number; volume: number; profit: number; swap: number };
+  growthDD: GrowthDDPoint[];
+  symbolStats: SymbolStat[];
   raw: Awaited<ReturnType<typeof prisma.account.findUnique>>;
 }
 
-export async function loadAccountMetrics(accountId: string): Promise<AccountWithMetrics | null> {
+export async function loadAccountMetrics(
+  accountId: string,
+  sinceMs?: number
+): Promise<AccountWithMetrics | null> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) return null;
 
+  const timeFilter =
+    sinceMs !== undefined ? { time: { gte: new Date(sinceMs) } } : {};
+  const snapFilter =
+    sinceMs !== undefined
+      ? { createdAt: { gte: new Date(sinceMs) } }
+      : {};
+
   const [deals, positions, snapshots] = await Promise.all([
     prisma.deal.findMany({
-      where: { accountId },
+      where: { accountId, ...timeFilter },
       select: {
         ticket: true,
         positionId: true,
@@ -62,7 +78,7 @@ export async function loadAccountMetrics(accountId: string): Promise<AccountWith
       orderBy: { openTime: "desc" },
     }),
     prisma.snapshot.findMany({
-      where: { accountId },
+      where: { accountId, ...snapFilter },
       select: { balance: true, equity: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }),
@@ -85,6 +101,8 @@ export async function loadAccountMetrics(accountId: string): Promise<AccountWith
     lastSyncAt: account.lastSyncAt,
     metrics,
     openSummary,
+    growthDD: growthDrawdownSeries(snapshots),
+    symbolStats: symbolStats(deals),
     raw: account,
   };
 }

@@ -2,14 +2,16 @@
 
 import {
   Area,
-  AreaChart,
+  ComposedChart,
   CartesianGrid,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { EquityPoint } from "@/lib/metrics";
+import { toUsd } from "@/lib/metrics";
 
 function downsample(points: EquityPoint[], max = 240): EquityPoint[] {
   if (points.length <= max) return points;
@@ -24,6 +26,9 @@ function downsample(points: EquityPoint[], max = 240): EquityPoint[] {
   return out;
 }
 
+const fmtAxis = (v: number) =>
+  v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+
 export default function EquityChart({
   points,
   cent,
@@ -33,79 +38,104 @@ export default function EquityChart({
   cent: boolean;
   currency?: string | null;
 }) {
-  const data = downsample(points).map((p) => ({
-    t: new Date(p.t).toLocaleDateString("id-ID", {
+  const data = downsample(points).map((p) => {
+    const mul = cent ? 100 : 1;
+    return {
+      t: p.t,
+      Equity: Math.round(toUsd(p.equity, cent) * mul) / mul,
+      Balance: Math.round(toUsd(p.balance, cent) * mul) / mul,
+    };
+  });
+
+  const fmt = (v: number) => `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  const fmtTick = (t: number) =>
+    new Date(t).toLocaleDateString("id-ID", {
       day: "2-digit",
       month: "short",
-      ...(points.length > 400 ? {} : { year: "2-digit" }),
-    }),
-    Equity: cent ? p.equity / 100 : p.equity,
-    Balance: cent ? p.balance / 100 : p.balance,
-  }));
+    });
 
-  const fmt = (v: number) =>
-    v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (data.length < 2) {
+    return (
+      <div className="flex h-[320px] w-full items-center justify-center text-body-sm text-on-surface-variant">
+        Belum ada titik equity untuk rentang ini.
+      </div>
+    );
+  }
 
   return (
-    <div className="h-72 w-full">
+    <div className="flex h-[320px] w-full flex-col">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+              <stop offset="0%" stopColor="#006c4a" stopOpacity={0.1} />
+              <stop offset="100%" stopColor="#006c4a" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid stroke="#eff4ff" vertical={false} strokeWidth={1} />
           <XAxis
             dataKey="t"
-            tick={{ fill: "#71717a", fontSize: 11 }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={false}
-            minTickGap={40}
-          />
-          <YAxis
-            tick={{ fill: "#71717a", fontSize: 11 }}
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            scale="time"
+            tickFormatter={fmtTick}
+            tick={{ fill: "#76777d", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={70}
-            tickFormatter={fmt}
+            minTickGap={48}
+          />
+          <YAxis
+            tickFormatter={fmtAxis}
+            tick={{ fill: "#76777d", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={56}
             domain={["auto", "auto"]}
           />
           <Tooltip
+            cursor={{ stroke: "#cbd5e1", strokeWidth: 1 }}
             contentStyle={{
-              background: "#18181b",
-              border: "1px solid #3f3f46",
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
               borderRadius: 8,
               fontSize: 12,
+              boxShadow: "0 4px 6px -1px rgba(15,23,42,0.06)",
             }}
-            labelStyle={{ color: "#a1a1aa" }}
-            formatter={(value, name) => [
-              fmt(Number(value)),
-              String(name) === "Equity" ? "Equity" : "Balance",
-            ]}
+            labelStyle={{ color: "#64748b", fontSize: 11 }}
+            labelFormatter={(t) =>
+              new Date(Number(t)).toLocaleString("id-ID", {
+                day: "2-digit",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            }
+            formatter={(value) => [fmt(Number(value)), undefined]}
           />
-          <Area
+          <Line
             type="monotone"
             dataKey="Balance"
-            stroke="#6366f1"
-            strokeWidth={1.5}
-            fill="none"
+            stroke="#94a3b8"
+            strokeWidth={1.25}
+            strokeDasharray="4 3"
             dot={false}
+            name="Balance"
           />
           <Area
             type="monotone"
             dataKey="Equity"
-            stroke="#10b981"
-            strokeWidth={2}
+            stroke="#006c4a"
+            strokeWidth={2.25}
             fill="url(#eqGrad)"
             dot={false}
+            name="Equity"
           />
-        </AreaChart>
+        </ComposedChart>
       </ResponsiveContainer>
       {cent && (
-        <p className="mt-1 text-right text-[11px] text-zinc-600">
-          Nilai dikonversi USC → USD (÷100){currency ? ` · Mata uang akun: ${currency}` : ""}
+        <p className="mt-1 text-right text-[11px] text-on-surface-variant">
+          Nilai dikonversi USC → USD (÷100)
+          {currency && currency !== "USD" ? ` · Mata uang akun: ${currency}` : ""}
         </p>
       )}
     </div>
