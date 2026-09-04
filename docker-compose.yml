@@ -11,8 +11,10 @@ services:
     build: .
     image: freebuff-monitor:latest
     restart: unless-stopped
+    # Port host bisa diubah via APP_PORT di .env (mis. APP_PORT=3100)
+    # bila 3000 sudah terpakai container lain di VPS.
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     env_file:
       - .env
     environment:

@@ -43,6 +43,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 2. Build & jalankan
 
+> **Port bentrok?** Bila port 3000 di VPS sudah dipakai container lain
+> (cek: `docker ps`), tambahkan `APP_PORT=3100` di `.env` — port host
+> otomatis berpindah. Contoh di panduan ini memakai `APP_PORT=3100`.
+
 ```bash
 docker compose up -d --build
 ```
@@ -51,12 +55,14 @@ Cek:
 
 ```bash
 docker compose ps            # status harus "Up (healthy)"
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/login   # → 200
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3100/login   # → 200
+                              # (ganti 3100 dengan APP_PORT kamu)
 docker compose logs -f web   # lihat log bila ada masalah
 ```
 
-App jalan di `127.0.0.1:3000` (tidak terbuka ke publik — hanya bisa
-diakses lewat nginx).
+App jalan di `127.0.0.1:<APP_PORT>` (tidak terbuka ke publik — hanya bisa
+diakses lewat nginx). Pastikan `proxy_pass` di nginx memakai port yang sama
+(`nginx.conf.example` contohnya memakai 3100).
 
 ## 3. Nginx reverse proxy
 

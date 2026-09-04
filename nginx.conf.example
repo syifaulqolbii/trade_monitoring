@@ -14,8 +14,10 @@ server {
     # Payload sync dari bridge bisa besar (deal history pertama kali)
     client_max_body_size 25m;
 
+    # Sesuaikan port ini dengan APP_PORT di .env (default 3000).
+    # Contoh di bawah memakai 3100 (untuk VPS yang 3000-nya terpakai).
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3100;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
