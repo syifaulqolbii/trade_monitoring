@@ -290,7 +290,8 @@ def main():
                 except Exception:
                     print(f"  [OK] Server menerima data.")
                 if max_deal_time is not None:
-                    state["last_deal_time"] = max_deal_time.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    # iso() menangani int (unix detik) maupun datetime
+                    state["last_deal_time"] = iso(max_deal_time)
                     save_state(state)
             elif status == 401:
                 print(f"  [ERROR] Token ditolak server. Cek token akun di halaman Akun.")
