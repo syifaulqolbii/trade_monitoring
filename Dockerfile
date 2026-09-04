@@ -32,10 +32,19 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+# Prisma CLI + engines (untuk inisialisasi skema DB saat container start).
+# @prisma/engines juga berisi query engine runtime yang dibutuhkan @prisma/client.
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=builder /app/node_modules/@prisma/config ./node_modules/@prisma/config
+
 # SQLite tersimpan di volume (/app/data) agar tidak hilang saat container restart
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
 
 USER nextjs
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Buat/perbarui skema tabel (idempotent) lalu jalankan server.
+# --skip-generate: client sudah di-generate saat build; user nextjs tidak punya
+# izin menulis ke node_modules.
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push --skip-generate && exec node server.js"]

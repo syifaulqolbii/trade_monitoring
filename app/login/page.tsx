@@ -61,7 +61,6 @@ function LoginForm() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="admin"
             />
           </div>
           <div>
@@ -95,9 +94,6 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-zinc-600">
-          Kredensial default: admin / admin123 — ganti di file .env
-        </p>
       </div>
     </div>
   );
