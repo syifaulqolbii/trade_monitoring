@@ -171,10 +171,21 @@ export default async function DashboardPage({
         <StatCard label="Profit Factor" value={pf} sub="Gross profit / gross loss" />
         <StatCard
           label="Lots Bulan Ini"
-          value={fmtLots(curMonthStat?.lots)}
-          sub={`Total lot: ${fmtLots(m.totalLots)}`}
+          value={fmtLots(curMonthStat?.lots, { cent })}
+          sub={
+            cent
+              ? `Total: ${fmtLots(m.totalLots, { cent })} lot standar`
+              : `Total lot: ${fmtLots(m.totalLots)}`
+          }
         />
       </div>
+
+      {cent && (
+        <p className="mt-3 text-xs text-zinc-600">
+          Akun cent: uang ÷100 (USC → USD) dan <b>lot ÷100 → lot standar</b>{" "}
+          (1.0 lot cent = 0.01 lot standar, kontrak 1 lot = 1.000 unit).
+        </p>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 lg:col-span-2">
@@ -205,7 +216,8 @@ export default async function DashboardPage({
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">Total volume</span>
                 <span className="font-semibold">
-                  {fmtLots(data.openSummary.volume)} lot
+                  {fmtLots(data.openSummary.volume, { cent })}{" "}
+                  {cent ? "lot standar" : "lot"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -262,7 +274,7 @@ export default async function DashboardPage({
                       {monthLabel(row.month)}
                     </td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">
-                      {fmtLots(row.lots)}
+                      {fmtLots(row.lots, { cent })}
                     </td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">
                       {row.trades}

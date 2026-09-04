@@ -76,7 +76,9 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Volume</div>
-          <div className="mt-1 text-xl font-semibold">{fmtLots(totalVolume)} lot</div>
+          <div className="mt-1 text-xl font-semibold">
+            {fmtLots(totalVolume, { cent })} {cent ? "lot standar" : "lot"}
+          </div>
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Floating P&L</div>
@@ -85,6 +87,13 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
           </div>
         </div>
       </div>
+
+      {cent && (
+        <p className="mb-3 text-xs text-zinc-600">
+          Akun cent: volume ditampilkan dalam <b>lot standar</b> (1.0 lot cent =
+          0.01 lot standar, kontrak 1 lot = 1.000 unit).
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900">
         {positions.length === 0 ? (
@@ -98,7 +107,9 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
                 <th className="px-4 py-3 font-medium">Ticket</th>
                 <th className="px-4 py-3 font-medium">Simbol</th>
                 <th className="px-4 py-3 font-medium">Tipe</th>
-                <th className="px-4 py-3 text-right font-medium">Lot</th>
+                <th className="px-4 py-3 text-right font-medium">
+                  Lot{cent ? " (std)" : ""}
+                </th>
                 <th className="px-4 py-3 text-right font-medium">Buka</th>
                 <th className="px-4 py-3 text-right font-medium">Sekarang</th>
                 <th className="px-4 py-3 text-right font-medium">SL / TP</th>
@@ -123,7 +134,7 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
                       {p.type === 0 ? "BUY" : "SELL"}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtLots(p.volume)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtLots(p.volume, { cent })}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{p.priceOpen.toFixed(5)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{p.priceCurrent.toFixed(5)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-zinc-400">

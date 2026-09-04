@@ -3,6 +3,7 @@ import {
   computeMetrics,
   buildClosedPositions,
   toUsd,
+  toStdLots,
   netProfitOf,
   monthKey,
   type DealInput,
@@ -199,5 +200,18 @@ describe("computeMetrics", () => {
     const m = computeMetrics([], [pos], snaps, { cent: true });
     expect(m.balance).toBe(100000);
     expect(toUsd(m.equity, true)).toBe(1010);
+  });
+});
+
+describe("toStdLots", () => {
+  it("akun cent: lot dibagi 100 (1.0 lot cent = 0.01 lot standar)", () => {
+    expect(toStdLots(1, true)).toBe(0.01);
+    expect(toStdLots(45, true)).toBe(0.45);
+    expect(toStdLots(0.5, true)).toBe(0.005);
+  });
+
+  it("akun standar: lot tidak berubah", () => {
+    expect(toStdLots(1, false)).toBe(1);
+    expect(toStdLots(2.5, false)).toBe(2.5);
   });
 });

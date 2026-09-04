@@ -1,4 +1,4 @@
-import { toUsd } from "./metrics";
+import { toStdLots, toUsd } from "./metrics";
 
 /** Format angka uang; cent=true → tampilkan dalam USD (USC/100). */
 export function fmtMoney(
@@ -25,10 +25,18 @@ export function fmtPct(v: number | null | undefined, digits = 2): string {
   return `${sign}${v.toFixed(digits)}%`;
 }
 
-/** Format lot, mis. 1.25 */
-export function fmtLots(v: number | null | undefined): string {
+/** Format lot; cent=true → konversi ke lot standar (lot cent ÷ 100),
+ *  mis. 1.0 lot cent = 0.01 lot standar (kontrak 1 lot = 1.000 unit). */
+export function fmtLots(
+  v: number | null | undefined,
+  opts: { cent?: boolean } = {}
+): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "-";
-  return v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const cent = opts.cent ?? false;
+  const x = cent ? toStdLots(v, true) : v;
+  // lot standar bisa sangat kecil (mis. 0.005) — tampilkan desimal secukupnya
+  const maxDigits = cent ? (x >= 1 ? 2 : x >= 0.01 ? 3 : 4) : 2;
+  return x.toLocaleString("en-US", { maximumFractionDigits: maxDigits });
 }
 
 const ID_MONTHS_SHORT = [

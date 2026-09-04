@@ -100,6 +100,13 @@ export function toUsd(amount: number, cent: boolean): number {
   return cent ? amount / 100 : amount;
 }
 
+/** Konversi lot akun cent ke lot standar (÷100).
+ *  Akun cent umumnya ber-kontrak 1 lot = 1.000 unit = 0.01 lot standar
+ *  (mis. akun Cent Valetax), jadi 1.0 lot cent ≈ 0.01 lot standar. */
+export function toStdLots(lots: number, cent: boolean): number {
+  return cent ? lots / 100 : lots;
+}
+
 /** Kelompokkan deal jadi posisi tertutup (pasangan entry–exit per positionId). */
 export function buildClosedPositions(deals: DealInput[]): ClosedPosition[] {
   const byPosition = new Map<string, DealInput[]>();

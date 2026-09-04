@@ -226,6 +226,13 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
         )}
       </form>
 
+      {cent && (
+        <p className="mb-3 text-xs text-zinc-600">
+          Akun cent: volume ditampilkan dalam <b>lot standar</b> (1.0 lot cent =
+          0.01 lot standar, kontrak 1 lot = 1.000 unit).
+        </p>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-900">
         {pageRows.length === 0 ? (
           <p className="py-12 text-center text-sm text-zinc-600">Tidak ada trade</p>
@@ -236,7 +243,9 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
                 <th className="px-4 py-3 font-medium">Ticket</th>
                 <th className="px-4 py-3 font-medium">Simbol</th>
                 <th className="px-4 py-3 font-medium">Tipe</th>
-                <th className="px-4 py-3 text-right font-medium">Lot</th>
+                <th className="px-4 py-3 text-right font-medium">
+                  Lot{cent ? " (std)" : ""}
+                </th>
                 <th className="px-4 py-3 text-right font-medium">Harga Buka</th>
                 <th className="px-4 py-3 text-right font-medium">Harga Tutup</th>
                 <th className="px-4 py-3 font-medium">Waktu</th>
@@ -261,7 +270,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
                       {r.type === "buy" ? "BUY" : "SELL"}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtLots(r.volume)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">{fmtLots(r.volume, { cent })}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.openPrice.toFixed(5)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.closePrice.toFixed(5)}</td>
                   <td className="px-4 py-2.5 text-xs text-zinc-400">
