@@ -47,9 +47,20 @@ export function buildHistory(deals: DealRow[]): HistoryRow[] {
   }
   const rows: HistoryRow[] = [];
   for (const [positionId, arr] of byPos) {
-    const entry = arr.find((d) => d.direction === 0);
-    const exit = arr.find((d) => d.direction === 1);
-    if (!entry || !exit) continue;
+    // Urutkan per waktu agar penentuan entry/exit konsisten.
+    arr.sort((a, b) => a.time.getTime() - b.time.getTime());
+    // Exit = deal keluar TERAKHIR: direction 1 (out), 2 (inout/reversal),
+    // 3 (out_by/close-by). Dulu hanya direction === 1 yang dianggap exit,
+    // sehingga trade yang ditutup via close-by/reversal tidak pernah tampil.
+    // Pakai deal keluar terakhir agar closeTime/closePrice akurat saat
+    // posisi ditutup bertahap (partial close).
+    let exit: DealRow | undefined;
+    for (const d of arr) if (d.direction !== 0) exit = d;
+    if (!exit) continue; // belum ada deal keluar → posisi masih terbuka
+    // Entry: deal masuk (direction 0). Bila deal entry tidak pernah tersinkron
+    // (posisi dibuka sebelum bridge berjalan / cache terminal stale), pakai
+    // deal terlama sebagai pengganti agar trade tetap muncul di riwayat.
+    const entry = arr.find((d) => d.direction === 0) ?? arr[0];
     let net = 0;
     let commission = 0;
     let swap = 0;

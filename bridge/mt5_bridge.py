@@ -224,12 +224,26 @@ def collect_account(cfg, account, state):
             )
         else:
             date_from = datetime.now(timezone.utc) - timedelta(days=cfg.get("history_days", 365))
-        date_to = datetime.now(timezone.utc) + timedelta(minutes=1)
+        # PENTING: date_to longgar (+1 hari). Waktu deal MT5 memakai waktu SERVER
+        # broker (umumnya GMT+2/+3), sedangkan filter date pakai UTC. Dengan
+        # date_to = now+1 menit, deal yang baru dieksekusi bisa "di masa depan"
+        # relatif thd UTC dan TIDAK PERNAH ikut window sampai offset tersalip.
+        # Server web sudah melakukan dedupe per ticket, jadi window lebih lebar aman.
+        date_to = datetime.now(timezone.utc) + timedelta(days=1)
 
         deals = []
         max_deal_time = None
         try:
             raw_deals = mt5.history_deals_get(date_from, date_to) or ()
+            if len(raw_deals) == 0:
+                # Fallback: panggil TANPA argumen tanggal. Beberapa versi paket/
+                # terminal menyaring rentang tanggal secara tidak konsisten
+                # (cache history yang belum tersinkron), sementara pemanggilan
+                # tanpa argumen mengembalikan seluruh deal yang ada di cache.
+                raw_deals = mt5.history_deals_get() or ()
+                if len(raw_deals) > 0:
+                    print(f"  [INFO] Window tanggal kosong, fallback all-cache: "
+                          f"{len(raw_deals)} deals.")
             for d in raw_deals:
                 deals.append({
                     "ticket": d.ticket,
@@ -249,7 +263,9 @@ def collect_account(cfg, account, state):
                 })
                 if max_deal_time is None or d.time > max_deal_time:
                     max_deal_time = d.time
-            print(f"  [OK] {len(deals)} deals terbaca, {len(positions)} posisi terbuka.")
+            print(f"  [OK] {len(deals)} deals terbaca "
+                  f"(window {date_from.isoformat()} s/d {date_to.isoformat()}), "
+                  f"{len(positions)} posisi terbuka.")
         except Exception as e:
             print(f"  [WARN] Gagal baca deal history: {e}")
 

@@ -129,7 +129,11 @@ export function buildClosedPositions(deals: DealInput[]): ClosedPosition[] {
 
   const result: ClosedPosition[] = [];
   for (const [positionId, arr] of byPosition) {
-    if (arr.length < 2) continue; // butuh minimal entry + exit
+    // Butuh minimal satu deal keluar (direction ≠ 0: out/inout/out_by).
+    // Posisi yang masih terbuka hanya punya deal masuk → tidak dihitung.
+    // Dulu syaratnya arr.length >= 2 tanpa cek arah — trade yang ditutup
+    // via close-by (direction 3) / reversal (direction 2) ikut hilang.
+    if (!arr.some((d) => d.direction !== 0)) continue;
     let net = 0;
     let raw = 0;
     let commission = 0;
