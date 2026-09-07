@@ -261,7 +261,12 @@ def collect_account(cfg, account, state, backfill_days=None):
         deals = []
         max_deal_time = None
         try:
-            raw_deals = mt5.history_deals_get(date_from, date_to) or ()
+            if date_from is not None:
+                raw_deals = mt5.history_deals_get(date_from, date_to) or ()
+            else:
+                # Tanpa batas awal (backfill "semua hari" / awal normal):
+                # panggil tanpa argumen tanggal → seluruh deal di cache terminal.
+                raw_deals = mt5.history_deals_get() or ()
             if len(raw_deals) == 0:
                 # Fallback: panggil TANPA argumen tanggal. Beberapa versi paket/
                 # terminal menyaring rentang tanggal secara tidak konsisten
@@ -291,8 +296,8 @@ def collect_account(cfg, account, state, backfill_days=None):
                 if max_deal_time is None or d.time > max_deal_time:
                     max_deal_time = d.time
             print(f"  [OK] {len(deals)} deals terbaca "
-                  f"(window {date_from.isoformat()} s/d {date_to.isoformat()}), "
-                  f"{len(positions)} posisi terbuka.")
+                  f"(window {date_from.isoformat() if date_from else 'SEMUA'} s/d "
+                  f"{date_to.isoformat()}), {len(positions)} posisi terbuka.")
         except Exception as e:
             print(f"  [WARN] Gagal baca deal history: {e}")
 
