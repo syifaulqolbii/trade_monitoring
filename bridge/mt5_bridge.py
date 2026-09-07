@@ -86,6 +86,25 @@ def save_state(state):
         print(f"[WARN] Gagal menyimpan state: {e}")
 
 
+def parse_args():
+    """CLI opsional: --backfill-days N menarik ulang N hari deal history
+    (atau --backfill-days 0 = semua yang ada di cache terminal), sekali jalan,
+    lalu keluar. Berguna untuk memulihkan trade lama yang terlewat."""
+    backfill = None
+    if "--backfill-days" in sys.argv:
+        idx = sys.argv.index("--backfill-days")
+        if idx + 1 < len(sys.argv):
+            try:
+                backfill = int(sys.argv[idx + 1])
+            except ValueError:
+                print("[FATAL] --backfill-days harus angka (0 = semua history).")
+                sys.exit(1)
+        else:
+            print("[FATAL] --backfill-days butuh nilai, mis. --backfill-days 0")
+            sys.exit(1)
+    return backfill
+
+
 def clean(v, default=None):
     """Ganti NaN/Infinity (sering muncul di MT5) dengan default."""
     if v is None:
@@ -129,7 +148,7 @@ def send_payload(cfg, account, payload):
         return None, str(e)
 
 
-def collect_account(cfg, account, state):
+def collect_account(cfg, account, state, backfill_days=None):
     """Attach ke terminal, ambil data akun, balikan payload + info deal terakhir."""
     login = account.get("login")
     attach = bool(account.get("attach_existing", True))
@@ -217,7 +236,15 @@ def collect_account(cfg, account, state):
                 date_from = datetime.fromisoformat(last_deal_time.replace("Z", "+00:00"))
             except Exception:
                 date_from = None
-        if date_from is not None:
+        # Backfill sekali-jalan: abaikan last_deal_time dan tarik window besar.
+        # 0 = tanpa batas awal (seluruh deal yang ada di cache terminal).
+        if backfill_days is not None:
+            if backfill_days <= 0:
+                date_from = None  # tanpa date_from → semua deal di cache
+            else:
+                date_from = datetime.now(timezone.utc) - timedelta(days=backfill_days)
+            print(f"  [BACKFILL] Menarik {backfill_days if backfill_days > 0 else 'SEMUA'} hari deal history...")
+        elif date_from is not None:
             date_from = min(
                 date_from - timedelta(hours=24),
                 datetime.now(timezone.utc) - timedelta(days=3),
@@ -280,6 +307,7 @@ def collect_account(cfg, account, state):
 
 
 def main():
+    backfill_days = parse_args()
     cfg = load_config()
     state = load_state()
 
@@ -291,6 +319,8 @@ def main():
     print(f"App URL : {app_url}")
     print(f"Interval: {interval} detik")
     print(f"Akun    : {len(cfg['accounts'])}")
+    if backfill_days is not None:
+        print(f"Mode    : BACKFILL ({backfill_days if backfill_days > 0 else 'semua'} hari, sekali jalan)")
     print("=" * 60)
 
     if not cfg.get("accounts"):
@@ -304,7 +334,7 @@ def main():
             # Guard terakhir: satu exception tak terduga tidak boleh mematikan
             # seluruh bridge — cukup lewati siklus ini.
             try:
-                payload, max_deal_time = collect_account(cfg, account, state)
+                payload, max_deal_time = collect_account(cfg, account, state, backfill_days)
                 if payload is None:
                     print(f"  [SKIP] {name} dilewati (gagal konek).")
                     continue
@@ -325,6 +355,11 @@ def main():
                           f"{payload['account'].get('currency', '')}")
                 except Exception:
                     print(f"  [OK] Server menerima data.")
+
+                if backfill_days is not None:
+                    print("  [BACKFILL] Selesai. Jalankan ulang bridge TANPA opsi ini "
+                          "untuk mode normal.")
+                    sys.exit(0)
 
                 # Deteksi history cache stale: balance berubah tapi tidak ada
                 # deal baru selama beberapa siklus beruntun. Bandingkan dengan
