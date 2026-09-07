@@ -1,11 +1,29 @@
 import { toStdLots, toUsd } from "./metrics";
 
+/**
+ * Mode privasi global ("mata tertutup"): saat aktif, fmtMoney menyembunyikan
+ * SEMUA nilai uang sebagai "$----" — dipakai di web maupun snapshot image.
+ * Diubah via setPrivacyMode() dari PrivacyProvider (disimpan di cookie).
+ */
+let privacyMode = false;
+
+export function setPrivacyMode(on: boolean): void {
+  privacyMode = on;
+}
+
+export function getPrivacyMode(): boolean {
+  return privacyMode;
+}
+
+export const PRIVACY_MASK = "$----";
+
 /** Format angka uang; cent=true → tampilkan dalam USD (USC/100). */
 export function fmtMoney(
   v: number | null | undefined,
   opts: { cent?: boolean; digits?: number; symbol?: string } = {}
 ): string {
   if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  if (privacyMode) return PRIVACY_MASK;
   const cent = opts.cent ?? false;
   const digits = opts.digits ?? (cent ? 2 : 2);
   const usd = toUsd(v, cent);

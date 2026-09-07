@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import type { EquityPoint } from "@/lib/metrics";
 import { toUsd } from "@/lib/metrics";
+import { usePrivacy } from "./PrivacyProvider";
+import { PRIVACY_MASK } from "@/lib/format";
 
 function downsample(points: EquityPoint[], max = 240): EquityPoint[] {
   if (points.length <= max) return points;
@@ -38,6 +40,8 @@ export default function EquityChart({
   cent: boolean;
   currency?: string | null;
 }) {
+  const { privacy } = usePrivacy();
+
   const data = downsample(points).map((p) => {
     const mul = cent ? 100 : 1;
     return {
@@ -47,7 +51,6 @@ export default function EquityChart({
     };
   });
 
-  const fmt = (v: number) => `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
   const fmtTick = (t: number) =>
     new Date(t).toLocaleDateString("id-ID", {
       day: "2-digit",
@@ -85,11 +88,11 @@ export default function EquityChart({
             minTickGap={48}
           />
           <YAxis
-            tickFormatter={fmtAxis}
+            tickFormatter={(v) => (privacy ? "•••" : fmtAxis(Number(v)))}
             tick={{ fill: "#76777d", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={56}
+            width={privacy ? 40 : 56}
             domain={["auto", "auto"]}
           />
           <Tooltip
@@ -110,7 +113,10 @@ export default function EquityChart({
                 minute: "2-digit",
               })
             }
-            formatter={(value) => [fmt(Number(value)), undefined]}
+            formatter={(value, name) => [
+              privacy ? PRIVACY_MASK : `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+              name,
+            ]}
           />
           <Line
             type="monotone"

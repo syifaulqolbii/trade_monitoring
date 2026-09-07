@@ -7,6 +7,7 @@ import Icon from "./components/Icon";
 import MetricCard, { MetricValue, type Tone } from "./components/MetricCard";
 import EquityChart from "./components/EquityChart";
 import GrowthDrawdown from "./components/GrowthDrawdown";
+import DashboardActions, { type DashboardSnapshotData } from "./components/DashboardActions";
 
 export const dynamic = "force-dynamic";
 
@@ -225,6 +226,40 @@ export default async function DashboardPage({
     return qs ? `/?${qs}` : "/";
   };
 
+  const snapshot: DashboardSnapshotData = {
+    account: {
+      name: allData.name,
+      broker: allData.broker,
+      login: allData.login,
+      server: allData.server ?? "",
+      cent,
+    },
+    rangeLabel: RANGES.find((r) => r.key === range)?.label ?? "Bulan Ini",
+    metrics: {
+      balance: m.balance,
+      equity: m.equity,
+      netProfit: m.netProfit,
+      growthPct: m.growthPct,
+      winRatePct: m.winRatePct,
+      profitFactor: m.profitFactor,
+      totalTrades: m.totalTrades,
+      lots: m.totalLots,
+    },
+    monthly: mAll.monthly.map((r) => ({
+      month: r.month,
+      lots: r.lots,
+      trades: r.trades,
+      winRate: r.winRate,
+      profit: r.profit,
+      balance: r.balance ?? 0,
+    })),
+    growth: allData.growthDD.map((g) => ({
+      t: g.t,
+      growthPct: g.growthPct,
+      ddPct: g.ddPct,
+    })),
+  };
+
   return (
     <div className="w-full px-6">
       <div className="mx-auto flex w-full max-w-[1400px] flex-col">
@@ -251,21 +286,24 @@ export default async function DashboardPage({
             </p>
           </div>
 
-          {/* Timeframe tabs */}
-          <div className="flex w-fit items-center gap-1.5 rounded-lg bg-surface-container p-1">
-            {RANGES.map((r) => (
-              <Link
-                key={r.key}
-                href={rangeHref(r.key)}
-                className={`rounded px-3 py-1 font-label-caps text-label-caps transition-colors ${
-                  range === r.key
-                    ? "bg-surface-container-lowest text-on-surface shadow-sm"
-                    : "text-on-surface-variant hover:text-on-surface"
-                }`}
-              >
-                {r.label}
-              </Link>
-            ))}
+          {/* Timeframe tabs + snapshot */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-fit items-center gap-1.5 rounded-lg bg-surface-container p-1">
+              {RANGES.map((r) => (
+                <Link
+                  key={r.key}
+                  href={rangeHref(r.key)}
+                  className={`rounded px-3 py-1 font-label-caps text-label-caps transition-colors ${
+                    range === r.key
+                      ? "bg-surface-container-lowest text-on-surface shadow-sm"
+                      : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {r.label}
+                </Link>
+              ))}
+            </div>
+            <DashboardActions snapshot={snapshot} />
           </div>
         </div>
 

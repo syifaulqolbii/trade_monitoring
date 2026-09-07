@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import Icon from "./Icon";
+import { usePrivacy } from "./PrivacyProvider";
 
 export interface TopbarAccount {
   id: string;
@@ -40,6 +41,7 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { privacy, toggle: togglePrivacy } = usePrivacy();
 
   const activeId = useMemo(
     () => searchParams.get("acc") ?? accounts[0]?.id ?? "",
@@ -146,6 +148,28 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
           </div>
         )}
         <div className="h-5 w-px bg-outline-variant/30" />
+        <button
+          type="button"
+          onClick={togglePrivacy}
+          title={
+            privacy
+              ? "Tampilkan nilai uang (mata terbuka)"
+              : "Sembunyikan nilai uang (mata tertutup) — semua $ jadi $----"
+          }
+          aria-label={
+            privacy ? "Tampilkan nilai uang" : "Sembunyikan nilai uang"
+          }
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+            privacy
+              ? "bg-tertiary-fixed text-on-tertiary-container"
+              : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+          }`}
+        >
+          <Icon
+            name={privacy ? "visibility_off" : "visibility"}
+            className="text-[20px]"
+          />
+        </button>
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary">
             <Icon name="person" className="text-[18px]" />
