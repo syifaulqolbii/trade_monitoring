@@ -205,12 +205,23 @@ def collect_account(cfg, account, state):
             print(f"  [WARN] Gagal baca posisi: {e}")
 
         # 4) Deal history
+        # Catatan: history_deals_get membaca cache lokal terminal yang bisa STALE
+        # (deal terlihat di UI terminal tapi tidak dikembalikan API). Karena itu
+        # kita selalu ambil window bergulir min. 3 hari terakhir + overlap 24 jam
+        # dari deal terakhir yang sudah terkirim — server melakukan dedupe per
+        # ticket, jadi mengirim ulang deal lama aman.
         last_deal_time = state.get("last_deal_time") if state else None
+        date_from = None
         if last_deal_time:
             try:
                 date_from = datetime.fromisoformat(last_deal_time.replace("Z", "+00:00"))
             except Exception:
                 date_from = None
+        if date_from is not None:
+            date_from = min(
+                date_from - timedelta(hours=24),
+                datetime.now(timezone.utc) - timedelta(days=3),
+            )
         else:
             date_from = datetime.now(timezone.utc) - timedelta(days=cfg.get("history_days", 365))
         date_to = datetime.now(timezone.utc) + timedelta(minutes=1)
@@ -238,7 +249,7 @@ def collect_account(cfg, account, state):
                 })
                 if max_deal_time is None or d.time > max_deal_time:
                     max_deal_time = d.time
-            print(f"  [OK] {len(deals)} deal baru, {len(positions)} posisi terbuka.")
+            print(f"  [OK] {len(deals)} deals terbaca, {len(positions)} posisi terbuka.")
         except Exception as e:
             print(f"  [WARN] Gagal baca deal history: {e}")
 
@@ -281,18 +292,34 @@ def main():
 
             status, body = send_payload(cfg, account, payload)
             if status == 200:
+                deals_added = 0
                 try:
                     res = json.loads(body)
-                    print(f"  [OK] Server: deals={res.get('dealsAdded', 0)} ditambah, "
+                    deals_added = int(res.get("dealsAdded", 0))
+                    print(f"  [OK] Server: deals={deals_added} ditambah, "
                           f"posisi={res.get('positionsReplaced', 0)}, "
                           f"balance={payload['account']['balance']:.2f} "
                           f"{payload['account'].get('currency', '')}")
                 except Exception:
                     print(f"  [OK] Server menerima data.")
+
+                # Deteksi history cache stale: balance berubah tapi tidak ada
+                # deal baru yang masuk selama beberapa siklus beruntun.
+                balance = payload["account"]["balance"]
+                prev_balance = state.get("last_balance")
+                stale = 0 if deals_added > 0 else int(state.get("stale_cycles", 0)) + 1
+                if stale == 10 and prev_balance is not None and abs(balance - prev_balance) > 0.001:
+                    print("  [WARN] Balance berubah tapi tidak ada deal baru dari terminal.")
+                    print("         History cache MT5 kemungkinan stale. Buka MT5 → Toolbox →")
+                    print("         tab History → klik kanan → 'All History', atau restart terminal.")
+                    print("         Bridge akan backfill otomatis begitu cache menyegarkan.")
+                state["stale_cycles"] = stale
+                state["last_balance"] = balance
+
                 if max_deal_time is not None:
                     # iso() menangani int (unix detik) maupun datetime
                     state["last_deal_time"] = iso(max_deal_time)
-                    save_state(state)
+                save_state(state)
             elif status == 401:
                 print(f"  [ERROR] Token ditolak server. Cek token akun di halaman Akun.")
             elif status == 400:
