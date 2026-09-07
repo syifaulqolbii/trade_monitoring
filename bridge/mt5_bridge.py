@@ -9,8 +9,10 @@ Script ini dijalankan di VPS Windows yang sama dengan terminal MT5
 Cara kerja:
   1. Attach ke terminal MT5 yang sedang berjalan (attach_existing: true)
      atau login dengan kredensial investor (password/server diisi).
-  2. Baca account info, posisi terbuka, dan deal history.
-  3. Kirim ke web app (POST /api/bridge/sync) memakai token akun.
+  2. Pertahankan sesi MT5 (tidak shutdown tiap siklus) agar copier yang
+     share terminal tidak terputus.
+  3. Baca account info, posisi terbuka, dan deal history.
+  4. Kirim ke web app (POST /api/bridge/sync) memakai token akun.
 
 Setup:
   - pip install -r requirements.txt
@@ -54,6 +56,9 @@ DEFAULT_CONFIG = {
         }
     ],
 }
+
+# Login yang sedang ter-attach. None = belum ada sesi IPC.
+_connected_login = None
 
 
 def load_config():
@@ -138,8 +143,9 @@ def send_payload(cfg, account, payload):
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    # 90s: payload deal window 3 hari + processSync di web bisa > 30s.
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=90) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, body
     except urllib.error.HTTPError as e:
@@ -148,167 +154,193 @@ def send_payload(cfg, account, payload):
         return None, str(e)
 
 
-def collect_account(cfg, account, state, backfill_days=None):
-    """Attach ke terminal, ambil data akun, balikan payload + info deal terakhir."""
+def disconnect_mt5():
+    """Lepas IPC. Hanya dipanggil saat reconnect atau proses keluar."""
+    global _connected_login
+    try:
+        mt5.shutdown()
+    except Exception:
+        pass
+    _connected_login = None
+
+
+def ensure_connected(cfg, account):
+    """Attach sekali dan pertahankan sesi. Reconnect hanya jika terminal lepas."""
+    global _connected_login
     login = account.get("login")
     attach = bool(account.get("attach_existing", True))
     path = account.get("terminal_path") or cfg.get("terminal_path")
 
-    # 1) Initialize: attach ke terminal berjalan atau login dengan kredensial
+    info = mt5.account_info()
+    if info is not None and (not login or str(info.login) == str(login)):
+        _connected_login = str(info.login)
+        return True
+
+    if _connected_login is not None:
+        print("  [INFO] Sesi MT5 terputus/akun beda, reconnect...")
+        disconnect_mt5()
+
     if attach:
         if not mt5.initialize(path=path):
             code = mt5.last_error()
             print(f"  [ERROR] Gagal attach terminal ({code}). "
                   f"Pastikan terminal MT5 sedang berjalan di VPS.")
-            return None, None
+            return False
         info = mt5.account_info()
         if info is None or (login and str(info.login) != str(login)):
             print(f"  [ERROR] Terminal aktif login {getattr(info, 'login', '?')}, "
                   f"bukan {login}. Cek konfigurasi.")
-            mt5.shutdown()
-            return None, None
+            disconnect_mt5()
+            return False
     else:
         password = account.get("password")
         server = account.get("server")
         if not password or not server:
             print("  [ERROR] attach_existing=false butuh password & server investor.")
-            mt5.shutdown()
-            return None, None
+            return False
         if not mt5.initialize(path=path, login=int(login), password=password, server=server):
             code = mt5.last_error()
             print(f"  [ERROR] Gagal login ke MT5 ({code}). Cek kredensial investor.")
-            mt5.shutdown()
-            return None, None
+            disconnect_mt5()
+            return False
 
+    info = mt5.account_info()
+    _connected_login = str(info.login) if info else (str(login) if login else "?")
+    return True
+
+
+def collect_account(cfg, account, state, backfill_days=None):
+    """Ambil data akun dari sesi MT5 yang sudah hidup."""
+    if not ensure_connected(cfg, account):
+        return None, None
+
+    # Account info
+    info = mt5.account_info()
+    if info is None:
+        code = mt5.last_error()
+        print(f"  [ERROR] account_info gagal ({code}).")
+        disconnect_mt5()
+        return None, None
+
+    account_data = {
+        "login": str(info.login),
+        "broker": account.get("broker") or "",
+        "server": getattr(info, "server", None) or "",
+        "currency": getattr(info, "currency", None) or "",
+        "leverage": f"1:{info.leverage}" if getattr(info, "leverage", None) else None,
+        "company": getattr(info, "company", None) or "",
+        "balance": float(info.balance),
+        "equity": float(info.equity),
+        "margin": float(info.margin),
+        "freeMargin": float(info.margin_free),
+    }
+
+    # Posisi terbuka
+    positions = []
     try:
-        # 2) Account info
-        info = mt5.account_info()
-        if info is None:
-            code = mt5.last_error()
-            print(f"  [ERROR] account_info gagal ({code}).")
-            return None, None
+        for p in mt5.positions_get() or ():
+            positions.append({
+                "ticket": p.ticket,
+                "symbol": p.symbol,
+                "type": int(p.type),          # 0 buy, 1 sell
+                "volume": float(p.volume),
+                "priceOpen": float(clean(p.price_open, 0.0)),
+                "sl": clean(p.sl),
+                "tp": clean(p.tp),
+                "priceCurrent": float(clean(p.price_current, p.price_open)),
+                "profit": float(p.profit),
+                "swap": float(clean(p.swap, 0.0)),
+                "comment": getattr(p, "comment", None),
+                "magic": getattr(p, "magic", None),
+                "openTime": iso(p.time),
+            })
+    except Exception as e:
+        print(f"  [WARN] Gagal baca posisi: {e}")
 
-        account_data = {
-            "login": str(info.login),
-            "broker": account.get("broker") or "",
-            "server": getattr(info, "server", None) or "",
-            "currency": getattr(info, "currency", None) or "",
-            "leverage": f"1:{info.leverage}" if getattr(info, "leverage", None) else None,
-            "company": getattr(info, "company", None) or "",
-            "balance": float(info.balance),
-            "equity": float(info.equity),
-            "margin": float(info.margin),
-            "freeMargin": float(info.margin_free),
-        }
-
-        # 3) Posisi terbuka
-        positions = []
+    # Deal history
+    # Catatan: history_deals_get membaca cache lokal terminal yang bisa STALE
+    # (deal terlihat di UI terminal tapi tidak dikembalikan API). Karena itu
+    # kita selalu ambil window bergulir min. 3 hari terakhir + overlap 24 jam
+    # dari deal terakhir yang sudah terkirim — server melakukan dedupe per
+    # ticket, jadi mengirim ulang deal lama aman.
+    last_deal_time = state.get("last_deal_time") if state else None
+    date_from = None
+    if last_deal_time:
         try:
-            for p in mt5.positions_get() or ():
-                positions.append({
-                    "ticket": p.ticket,
-                    "symbol": p.symbol,
-                    "type": int(p.type),          # 0 buy, 1 sell
-                    "volume": float(p.volume),
-                    "priceOpen": float(clean(p.price_open, 0.0)),
-                    "sl": clean(p.sl),
-                    "tp": clean(p.tp),
-                    "priceCurrent": float(clean(p.price_current, p.price_open)),
-                    "profit": float(p.profit),
-                    "swap": float(clean(p.swap, 0.0)),
-                    "comment": getattr(p, "comment", None),
-                    "magic": getattr(p, "magic", None),
-                    "openTime": iso(p.time),
-                })
-        except Exception as e:
-            print(f"  [WARN] Gagal baca posisi: {e}")
-
-        # 4) Deal history
-        # Catatan: history_deals_get membaca cache lokal terminal yang bisa STALE
-        # (deal terlihat di UI terminal tapi tidak dikembalikan API). Karena itu
-        # kita selalu ambil window bergulir min. 3 hari terakhir + overlap 24 jam
-        # dari deal terakhir yang sudah terkirim — server melakukan dedupe per
-        # ticket, jadi mengirim ulang deal lama aman.
-        last_deal_time = state.get("last_deal_time") if state else None
-        date_from = None
-        if last_deal_time:
-            try:
-                date_from = datetime.fromisoformat(last_deal_time.replace("Z", "+00:00"))
-            except Exception:
-                date_from = None
-        # Backfill sekali-jalan: abaikan last_deal_time dan tarik window besar.
-        # 0 = tanpa batas awal (seluruh deal yang ada di cache terminal).
-        if backfill_days is not None:
-            if backfill_days <= 0:
-                date_from = None  # tanpa date_from → semua deal di cache
-            else:
-                date_from = datetime.now(timezone.utc) - timedelta(days=backfill_days)
-            print(f"  [BACKFILL] Menarik {backfill_days if backfill_days > 0 else 'SEMUA'} hari deal history...")
-        elif date_from is not None:
-            date_from = min(
-                date_from - timedelta(hours=24),
-                datetime.now(timezone.utc) - timedelta(days=3),
-            )
+            date_from = datetime.fromisoformat(last_deal_time.replace("Z", "+00:00"))
+        except Exception:
+            date_from = None
+    # Backfill sekali-jalan: abaikan last_deal_time dan tarik window besar.
+    # 0 = tanpa batas awal (seluruh deal yang ada di cache terminal).
+    if backfill_days is not None:
+        if backfill_days <= 0:
+            date_from = None  # tanpa date_from → semua deal di cache
         else:
-            date_from = datetime.now(timezone.utc) - timedelta(days=cfg.get("history_days", 365))
-        # PENTING: date_to longgar (+1 hari). Waktu deal MT5 memakai waktu SERVER
-        # broker (umumnya GMT+2/+3), sedangkan filter date pakai UTC. Dengan
-        # date_to = now+1 menit, deal yang baru dieksekusi bisa "di masa depan"
-        # relatif thd UTC dan TIDAK PERNAH ikut window sampai offset tersalip.
-        # Server web sudah melakukan dedupe per ticket, jadi window lebih lebar aman.
-        date_to = datetime.now(timezone.utc) + timedelta(days=1)
+            date_from = datetime.now(timezone.utc) - timedelta(days=backfill_days)
+        print(f"  [BACKFILL] Menarik {backfill_days if backfill_days > 0 else 'SEMUA'} hari deal history...")
+    elif date_from is not None:
+        date_from = min(
+            date_from - timedelta(hours=24),
+            datetime.now(timezone.utc) - timedelta(days=3),
+        )
+    else:
+        date_from = datetime.now(timezone.utc) - timedelta(days=cfg.get("history_days", 365))
+    # PENTING: date_to longgar (+1 hari). Waktu deal MT5 memakai waktu SERVER
+    # broker (umumnya GMT+2/+3), sedangkan filter date pakai UTC. Dengan
+    # date_to = now+1 menit, deal yang baru dieksekusi bisa "di masa depan"
+    # relatif thd UTC dan TIDAK PERNAH ikut window sampai offset tersalip.
+    # Server web sudah melakukan dedupe per ticket, jadi window lebih lebar aman.
+    date_to = datetime.now(timezone.utc) + timedelta(days=1)
 
-        deals = []
-        max_deal_time = None
-        try:
-            if date_from is not None:
-                raw_deals = mt5.history_deals_get(date_from, date_to) or ()
-            else:
-                # Tanpa batas awal (backfill "semua hari" / awal normal):
-                # panggil tanpa argumen tanggal → seluruh deal di cache terminal.
-                raw_deals = mt5.history_deals_get() or ()
-            if len(raw_deals) == 0:
-                # Fallback: panggil TANPA argumen tanggal. Beberapa versi paket/
-                # terminal menyaring rentang tanggal secara tidak konsisten
-                # (cache history yang belum tersinkron), sementara pemanggilan
-                # tanpa argumen mengembalikan seluruh deal yang ada di cache.
-                raw_deals = mt5.history_deals_get() or ()
-                if len(raw_deals) > 0:
-                    print(f"  [INFO] Window tanggal kosong, fallback all-cache: "
-                          f"{len(raw_deals)} deals.")
-            for d in raw_deals:
-                deals.append({
-                    "ticket": d.ticket,
-                    "positionId": getattr(d, "position_id", None),
-                    "symbol": d.symbol,
-                    "type": int(d.type),
-                    "direction": int(d.entry),  # 0 in, 1 out, 2 inout
-                    "volume": float(d.volume),
-                    "price": float(d.price),
-                    "profit": float(d.profit),
-                    "commission": float(clean(d.commission, 0.0)),
-                    "swap": float(clean(d.swap, 0.0)),
-                    "fee": float(clean(d.fee, 0.0)),
-                    "comment": getattr(d, "comment", None),
-                    "magic": getattr(d, "magic", None),
-                    "time": iso(d.time),
-                })
-                if max_deal_time is None or d.time > max_deal_time:
-                    max_deal_time = d.time
-            print(f"  [OK] {len(deals)} deals terbaca "
-                  f"(window {date_from.isoformat() if date_from else 'SEMUA'} s/d "
-                  f"{date_to.isoformat()}), {len(positions)} posisi terbuka.")
-        except Exception as e:
-            print(f"  [WARN] Gagal baca deal history: {e}")
+    deals = []
+    max_deal_time = None
+    try:
+        if date_from is not None:
+            raw_deals = mt5.history_deals_get(date_from, date_to) or ()
+        else:
+            # Tanpa batas awal (backfill "semua hari" / awal normal):
+            # panggil tanpa argumen tanggal → seluruh deal di cache terminal.
+            raw_deals = mt5.history_deals_get() or ()
+        if len(raw_deals) == 0:
+            # Fallback: panggil TANPA argumen tanggal. Beberapa versi paket/
+            # terminal menyaring rentang tanggal secara tidak konsisten
+            # (cache history yang belum tersinkron), sementara pemanggilan
+            # tanpa argumen mengembalikan seluruh deal yang ada di cache.
+            raw_deals = mt5.history_deals_get() or ()
+            if len(raw_deals) > 0:
+                print(f"  [INFO] Window tanggal kosong, fallback all-cache: "
+                      f"{len(raw_deals)} deals.")
+        for d in raw_deals:
+            deals.append({
+                "ticket": d.ticket,
+                "positionId": getattr(d, "position_id", None),
+                "symbol": d.symbol,
+                "type": int(d.type),
+                "direction": int(d.entry),  # 0 in, 1 out, 2 inout
+                "volume": float(d.volume),
+                "price": float(d.price),
+                "profit": float(d.profit),
+                "commission": float(clean(d.commission, 0.0)),
+                "swap": float(clean(d.swap, 0.0)),
+                "fee": float(clean(d.fee, 0.0)),
+                "comment": getattr(d, "comment", None),
+                "magic": getattr(d, "magic", None),
+                "time": iso(d.time),
+            })
+            if max_deal_time is None or d.time > max_deal_time:
+                max_deal_time = d.time
+        print(f"  [OK] {len(deals)} deals terbaca "
+              f"(window {date_from.isoformat() if date_from else 'SEMUA'} s/d "
+              f"{date_to.isoformat()}), {len(positions)} posisi terbuka.")
+    except Exception as e:
+        print(f"  [WARN] Gagal baca deal history: {e}")
 
-        payload = {
-            "account": account_data,
-            "positions": positions,
-            "deals": deals,
-        }
-        return payload, max_deal_time
-    finally:
-        mt5.shutdown()
+    payload = {
+        "account": account_data,
+        "positions": positions,
+        "deals": deals,
+    }
+    return payload, max_deal_time
 
 
 def main():
@@ -409,4 +441,6 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nBridge dihentikan.")
+    finally:
+        disconnect_mt5()
         sys.exit(0)

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import PrivacyProvider from "./components/PrivacyProvider";
+import AutoRefresh from "./components/AutoRefresh";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <PrivacyProvider initial={privacyOn}>
+      <AutoRefresh seconds={30} />
       <div className="min-h-screen bg-surface">
         <Sidebar username={session.username} lastSyncAt={lastSyncAt} />
         <div className="pl-64">
