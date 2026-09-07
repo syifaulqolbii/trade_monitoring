@@ -21,10 +21,10 @@ Butuh paket MetaTrader5 (hanya jalan di Windows dengan terminal MT5).
 """
 
 import json
-import ssl
 import sys
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -285,12 +285,19 @@ def main():
         for account in cfg["accounts"]:
             name = account.get("name", account.get("login", "?"))
             print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Sinkronisasi: {name}")
-            payload, max_deal_time = collect_account(cfg, account, state)
-            if payload is None:
-                print(f"  [SKIP] {name} dilewati (gagal konek).")
+            # Guard terakhir: satu exception tak terduga tidak boleh mematikan
+            # seluruh bridge — cukup lewati siklus ini.
+            try:
+                payload, max_deal_time = collect_account(cfg, account, state)
+                if payload is None:
+                    print(f"  [SKIP] {name} dilewati (gagal konek).")
+                    continue
+
+                status, body = send_payload(cfg, account, payload)
+            except Exception as e:
+                print(f"  [ERROR] Exception siklus: {e!r}. Lanjut siklus berikutnya.")
                 continue
 
-            status, body = send_payload(cfg, account, payload)
             if status == 200:
                 deals_added = 0
                 try:
@@ -304,21 +311,31 @@ def main():
                     print(f"  [OK] Server menerima data.")
 
                 # Deteksi history cache stale: balance berubah tapi tidak ada
-                # deal baru yang masuk selama beberapa siklus beruntun.
+                # deal baru selama beberapa siklus beruntun. Bandingkan dengan
+                # balance SAAT streak stale dimulai (bukan siklus sebelumnya).
                 balance = payload["account"]["balance"]
-                prev_balance = state.get("last_balance")
                 stale = 0 if deals_added > 0 else int(state.get("stale_cycles", 0)) + 1
-                if stale == 10 and prev_balance is not None and abs(balance - prev_balance) > 0.001:
-                    print("  [WARN] Balance berubah tapi tidak ada deal baru dari terminal.")
-                    print("         History cache MT5 kemungkinan stale. Buka MT5 → Toolbox →")
-                    print("         tab History → klik kanan → 'All History', atau restart terminal.")
-                    print("         Bridge akan backfill otomatis begitu cache menyegarkan.")
+                if stale == 1:
+                    state["stale_start_balance"] = balance
+                elif stale == 10:
+                    start_bal = state.get("stale_start_balance")
+                    if start_bal is not None and abs(balance - start_bal) > 0.001:
+                        print("  [WARN] Balance berubah tapi tidak ada deal baru dari terminal.")
+                        print("         History cache MT5 kemungkinan stale. Buka MT5 → Toolbox →")
+                        print("         tab History → klik kanan → 'All History', atau restart terminal.")
+                        print("         Bridge akan backfill otomatis begitu cache menyegarkan.")
+                if stale == 0:
+                    state.pop("stale_start_balance", None)
                 state["stale_cycles"] = stale
                 state["last_balance"] = balance
 
                 if max_deal_time is not None:
-                    # iso() menangani int (unix detik) maupun datetime
-                    state["last_deal_time"] = iso(max_deal_time)
+                    # iso() menangani int (unix detik) maupun datetime.
+                    # Jangan pernah mundur: pakai yang paling baru.
+                    new_iso = iso(max_deal_time)
+                    prev_iso = state.get("last_deal_time")
+                    if not prev_iso or (new_iso or "") > prev_iso:
+                        state["last_deal_time"] = new_iso
                 save_state(state)
             elif status == 401:
                 print(f"  [ERROR] Token ditolak server. Cek token akun di halaman Akun.")
