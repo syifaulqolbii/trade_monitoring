@@ -102,13 +102,13 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
       : null;
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-4 sm:p-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h1 className="font-headline-lg text-headline-lg tracking-tight text-on-surface">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-headline-lg-mobile text-headline-lg-mobile tracking-tight text-on-surface sm:font-headline-lg sm:text-headline-lg">
                 Posisi Terbuka
               </h1>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary-container/40 px-2.5 py-0.5 font-label-caps text-label-caps uppercase text-on-secondary-container">
@@ -138,7 +138,7 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
         </div>
 
         {/* KPI strip */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">
@@ -254,8 +254,8 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
           </div>
         )}
 
-        {/* Table */}
-        <div className="flex flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
+        {/* Table — desktop */}
+        <div className="hidden flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm lg:flex">
           <div className="flex flex-wrap items-center justify-between gap-4 bg-surface-container-lowest p-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 rounded-lg bg-surface-container-low px-3 py-1.5 text-on-surface">
@@ -389,10 +389,93 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
           </div>
         </div>
 
+        {/* Position cards — mobile (mockup) */}
+        <div className="flex flex-col gap-2.5 lg:hidden">
+          {positions.length === 0 ? (
+            <p className="rounded-xl bg-surface-container-lowest py-12 text-center font-body-sm text-body-sm text-on-surface-variant shadow-sm">
+              Tidak ada posisi terbuka saat ini.
+            </p>
+          ) : (
+            positions.map((p) => {
+              const buy = p.type === 0;
+              const win = p.profit >= 0;
+              return (
+                <div
+                  key={p.id}
+                  className="flex flex-col gap-2.5 rounded-xl bg-surface-container-lowest p-3.5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`rounded px-2 py-0.5 font-label-caps text-label-caps font-bold ${
+                          buy
+                            ? "bg-secondary-container/60 text-secondary"
+                            : "bg-tertiary-container text-on-tertiary"
+                        }`}
+                      >
+                        {buy ? "BUY" : "SELL"}
+                      </span>
+                      <span className="font-label-tabular text-label-tabular font-bold text-on-surface">
+                        {fmtLots(p.volume, { cent })} lot
+                      </span>
+                      <span className="font-label-caps text-label-caps text-on-surface-variant">
+                        #{p.ticket}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-metric-display text-[1.15rem] font-bold leading-none ${
+                        win ? "text-secondary" : "text-error"
+                      }`}
+                    >
+                      {signed(p.profit)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-container-low/70 p-2">
+                    <div>
+                      <p className="font-label-caps text-label-caps text-on-surface-variant">
+                        Entry → Spot
+                      </p>
+                      <p className="font-label-tabular text-label-tabular text-on-surface">
+                        {p.priceOpen.toFixed(5)} →{" "}
+                        <span
+                          className={`font-semibold ${win ? "text-secondary" : "text-error"}`}
+                        >
+                          {p.priceCurrent.toFixed(5)}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-label-caps text-label-caps text-on-surface-variant">
+                        Floating
+                      </p>
+                      <p
+                        className={`font-label-tabular text-label-tabular font-bold ${
+                          win ? "text-secondary" : "text-error"
+                        }`}
+                      >
+                        {signed(p.profit)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5 font-body-sm text-body-sm text-on-surface-variant">
+                    <span>
+                      SL: {p.sl != null ? p.sl.toFixed(5) : "—"} · TP:{" "}
+                      {p.tp != null ? p.tp.toFixed(5) : "—"}
+                    </span>
+                    <span className="font-label-caps text-label-caps text-outline">
+                      {fmtDateTime(p.openTime)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
         {/* Bottom panels */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Eksposur per simbol */}
-          <div className="flex flex-col rounded-xl bg-surface-container-lowest p-5 shadow-sm">
+          <div className="flex flex-col rounded-xl bg-surface-container-lowest p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between">
               <span className="font-headline-md text-body-md font-semibold text-on-surface">
                 Eksposur per Simbol
@@ -444,7 +527,7 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
           </div>
 
           {/* Ringkasan & ketahanan */}
-          <div className="flex flex-col justify-between gap-3 rounded-xl bg-surface-container-lowest p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-3 rounded-xl bg-surface-container-lowest p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between">
               <span className="font-headline-md text-body-md font-semibold text-on-surface">
                 Ringkasan Akun &amp; Ketahanan

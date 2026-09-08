@@ -261,13 +261,13 @@ export default async function DashboardPage({
   };
 
   return (
-    <div className="w-full px-6">
+    <div className="w-full px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[1400px] flex-col">
         {/* Page sub-header */}
-        <div className="flex flex-col justify-between gap-4 pb-4 md:flex-row md:items-center">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <h1 className="font-headline-lg text-headline-lg tracking-tight text-on-surface">
+        <div className="flex flex-col justify-between gap-3 pb-4 md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="font-headline-lg-mobile text-headline-lg-mobile tracking-tight text-on-surface sm:font-headline-lg sm:text-headline-lg">
                 Dashboard Telemetri
               </h1>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary-container px-2.5 py-0.5 font-label-caps text-label-caps text-on-secondary-container">
@@ -275,20 +275,20 @@ export default async function DashboardPage({
                 Live Feed
               </span>
             </div>
-            <p className="flex flex-wrap items-center gap-2 font-body-md text-body-md text-on-surface-variant">
+            <p className="flex flex-wrap items-center gap-2 truncate font-body-sm text-body-sm text-on-surface-variant sm:font-body-md sm:text-body-md">
               <span className="font-medium text-on-surface">{allData.name}</span>
               <span className="h-1 w-1 rounded-full bg-outline-variant" />
               <span className="tnum font-label-tabular text-label-tabular font-medium text-on-surface">
                 {allData.login}
               </span>
-              <span className="h-1 w-1 rounded-full bg-outline-variant" />
-              <span>{allData.server}</span>
+              <span className="hidden h-1 w-1 rounded-full bg-outline-variant sm:inline" />
+              <span className="hidden sm:inline">{allData.server}</span>
             </p>
           </div>
 
           {/* Timeframe tabs + snapshot */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex w-fit items-center gap-1.5 rounded-lg bg-surface-container p-1">
+            <div className="flex w-fit items-center gap-1 rounded-lg bg-surface-container p-1 sm:gap-1.5">
               {RANGES.map((r) => (
                 <Link
                   key={r.key}
@@ -309,7 +309,7 @@ export default async function DashboardPage({
 
         {/* Info banner akun cent */}
         {cent && (
-          <div className="mb-6 flex items-center justify-between rounded-lg bg-surface-container-low px-5 py-2.5">
+          <div className="mb-4 flex items-center justify-between rounded-lg bg-surface-container-low px-4 py-2.5 sm:px-5 sm:mb-6">
             <div className="flex min-w-0 items-center gap-2.5">
               <Icon name="info" className="shrink-0 text-[18px] text-on-surface-variant" />
               <span className="truncate font-body-sm text-body-sm text-on-surface-variant">
@@ -339,7 +339,7 @@ export default async function DashboardPage({
         ) : (
           <>
             {/* 8 metric cards */}
-            <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 lg:mb-8">
               {/* Equity */}
               <MetricCard
                 label="Equity"
@@ -527,11 +527,11 @@ export default async function DashboardPage({
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
                 {/* Equity chart */}
-                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] xl:col-span-8">
+                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] sm:p-6 xl:col-span-8">
                   <div className="flex flex-col justify-between gap-3 border-b border-outline-variant/20 pb-5 sm:flex-row sm:items-center">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-headline-md text-headline-md tracking-tight text-on-surface">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface sm:font-semibold sm:text-headline-md">
                           Kurva Telemetri: Equity vs Balance
                         </span>
                         <span className="rounded bg-surface-container px-2 py-0.5 font-label-caps text-label-caps text-on-surface-variant">
@@ -542,7 +542,7 @@ export default async function DashboardPage({
                         {chartCaption}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 pr-2 font-body-sm text-body-sm text-on-surface-variant">
+                    <div className="flex flex-wrap items-center gap-3 font-body-sm text-body-sm text-on-surface-variant sm:gap-4 sm:pr-2">
                       <div className="flex items-center gap-1.5">
                         <span className="h-0.5 w-3 rounded-full bg-on-surface opacity-50" />
                         <span className="font-medium text-on-surface">
@@ -563,10 +563,10 @@ export default async function DashboardPage({
                 </div>
 
                 {/* Posisi Terbuka panel */}
-                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] xl:col-span-4">
+                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] sm:p-6 xl:col-span-4">
                   <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-headline-md text-headline-md tracking-tight text-on-surface">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface sm:font-semibold sm:text-headline-md">
                         Posisi Terbuka
                       </span>
                       <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 font-label-caps text-label-caps font-bold text-on-tertiary-container">
@@ -669,10 +669,10 @@ export default async function DashboardPage({
 
               {/* Growth + Drawdown & Distribusi Simbol */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] sm:p-6">
                   <div className="flex flex-col justify-between gap-2 border-b border-outline-variant/20 pb-3 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface sm:font-semibold sm:text-headline-md">
                         Pertumbuhan &amp; Drawdown
                       </span>
                       <span className="rounded bg-tertiary-fixed px-2 py-0.5 font-label-caps text-label-caps font-semibold text-on-tertiary-container">
@@ -690,10 +690,10 @@ export default async function DashboardPage({
                   </div>
                 </div>
 
-                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] sm:p-6">
                   <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface sm:font-semibold sm:text-headline-md">
                         Distribusi &amp; Performa Simbol
                       </span>
                       <span className="rounded bg-surface-container px-2 py-0.5 font-label-caps text-label-caps text-on-surface-variant">
@@ -784,11 +784,11 @@ export default async function DashboardPage({
               </div>
 
               {/* Statistik bulanan (seluruh riwayat) */}
-              <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
+              <div className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] sm:p-6">
                 <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Icon name="calendar_month" className="text-[20px] text-on-surface-variant" />
-                    <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface">
+                    <span className="font-headline-md text-body-lg font-bold tracking-tight text-on-surface sm:font-semibold sm:text-headline-md">
                       Statistik Bulanan
                     </span>
                   </div>

@@ -6,6 +6,7 @@ import { setPrivacyMode } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
+import BottomNav from "./components/BottomNav";
 import PrivacyProvider from "./components/PrivacyProvider";
 import AutoRefresh from "./components/AutoRefresh";
 
@@ -42,8 +43,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <PrivacyProvider initial={privacyOn}>
       <AutoRefresh seconds={30} />
       <div className="min-h-screen bg-surface">
-        <Sidebar username={session.username} lastSyncAt={lastSyncAt} />
-        <div className="pl-64">
+        {/* Sidebar desktop — tersembunyi di mobile, diganti bottom nav */}
+        <div className="hidden lg:block">
+          <Sidebar username={session.username} lastSyncAt={lastSyncAt} />
+        </div>
+        <div className="lg:pl-64">
           <Topbar
             accounts={accounts.map((a) => ({
               id: a.id,
@@ -53,10 +57,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
             }))}
           />
-          <main className="min-h-screen bg-surface pb-10 pt-16">
+          {/* ruang untuk header mobile (h-14) & bottom nav (h-16) di layar kecil */}
+          <main className="min-h-screen bg-surface pb-24 pt-14 lg:pb-10 lg:pt-16">
             {children}
           </main>
         </div>
+        <BottomNav />
       </div>
     </PrivacyProvider>
   );

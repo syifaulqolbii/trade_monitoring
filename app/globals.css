@@ -119,6 +119,23 @@ html {
   color-scheme: light;
 }
 
+/* ---- Mobile helpers (dari mockup mobile) ---- */
+/* Safe area untuk header atas & bottom-nav (iPhone notch/home bar) */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Sembunyikan scrollbar untuk strip yang bisa di-swipe horizontal */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 body {
   background: var(--color-surface);
   color: var(--color-on-surface);

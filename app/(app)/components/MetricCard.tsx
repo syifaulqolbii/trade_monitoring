@@ -23,7 +23,7 @@ export default function MetricCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-5 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] transition-shadow hover:shadow-md">
+    <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] transition-shadow hover:shadow-md sm:p-5">
       <div className="flex items-center justify-between text-on-surface-variant">
         <span className="font-label-caps text-label-caps uppercase tracking-wider">
           {label}

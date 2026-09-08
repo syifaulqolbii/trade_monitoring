@@ -65,7 +65,7 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
   const level = liveLevel(active?.lastSyncAt ?? null);
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-40 flex h-16 items-center justify-between border-b border-outline-variant/30 bg-surface-container-lowest/90 px-6 shadow-[0_1px_8px_rgba(0,0,0,0.02)] backdrop-blur-md">
+    <header className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between gap-2 border-b border-outline-variant/30 bg-surface-container-lowest/90 px-4 pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.02)] backdrop-blur-md lg:left-64 lg:h-16 lg:px-6">
       <div className="flex min-w-0 items-center gap-4">
         {/* Account switcher */}
         {accounts.length > 0 ? (
@@ -78,7 +78,7 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
               aria-label="Pilih akun"
               value={active?.id ?? ""}
               onChange={(e) => go(e.target.value)}
-              className="w-full max-w-[240px] cursor-pointer appearance-none truncate rounded-xl border border-outline-variant/30 bg-surface-container-low py-1.5 pl-9 pr-8 font-body-md text-body-md font-semibold text-on-surface outline-none transition-colors hover:bg-surface-container"
+              className="w-full max-w-[240px] cursor-pointer appearance-none truncate rounded-xl border border-outline-variant/30 bg-surface-container-low py-1.5 pl-9 pr-8 font-body-md text-body-md font-semibold text-on-surface outline-none transition-colors hover:bg-surface-container max-[430px]:max-w-[130px]"
             >
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -147,7 +147,7 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
             </span>
           </div>
         )}
-        <div className="h-5 w-px bg-outline-variant/30" />
+        <div className="hidden h-5 w-px bg-outline-variant/30 sm:block" />
         <button
           type="button"
           onClick={togglePrivacy}

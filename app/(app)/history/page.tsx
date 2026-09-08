@@ -132,13 +132,13 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
   const toneCls = (v: number) => (v >= 0 ? "text-secondary" : "text-on-tertiary-container");
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-4 sm:p-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h1 className="font-headline-lg text-headline-lg text-on-surface">
+          <div className="flex min-w-0 flex-col">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-headline-lg-mobile text-headline-lg-mobile text-on-surface sm:font-headline-lg sm:text-headline-lg">
                 Riwayat Trade
               </h1>
               <span className="ml-2 rounded-full bg-surface-container-high px-2 py-0.5 font-label-tabular text-body-sm font-semibold text-on-surface-variant">
@@ -188,7 +188,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
         )}
 
         {/* Quick metric strip */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-4">
           <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">
@@ -362,8 +362,8 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
           </div>
         </form>
 
-        {/* Table */}
-        <div className="flex flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm">
+        {/* Table — desktop */}
+        <div className="hidden flex-col overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm lg:flex">
           <div className="overflow-x-auto">
             {pageRows.length === 0 ? (
               <p className="py-12 text-center font-body-sm text-body-sm text-on-surface-variant">
@@ -496,6 +496,112 @@ export default async function HistoryPage({ searchParams }: PageProps<"/history"
                   className="rounded-lg bg-surface-container-lowest px-2.5 py-1 font-label-tabular text-body-sm text-on-surface-variant shadow-sm transition-colors hover:bg-surface-container hover:text-on-surface"
                 >
                   <Icon name="chevron_right" className="align-middle text-[16px]" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Trade cards — mobile (mockup) */}
+        <div className="flex flex-col gap-2.5 lg:hidden">
+          {pageRows.length === 0 ? (
+            <div className="flex flex-col items-center rounded-xl bg-surface-container-lowest p-10 text-center shadow-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant">
+                <Icon name="search_off" className="text-[24px]" />
+              </div>
+              <p className="mt-3 font-body-md text-body-md font-semibold text-on-surface">
+                Tidak Ditemukan
+              </p>
+              <p className="mt-1 max-w-[240px] font-body-sm text-body-sm text-on-surface-variant">
+                Tidak ada trade tertutup dengan filter ini.
+              </p>
+            </div>
+          ) : (
+            pageRows.map((r: HistoryRow) => {
+              const win = r.netProfit >= 0;
+              return (
+                <div
+                  key={r.positionId}
+                  className="flex flex-col rounded-xl bg-surface-container-lowest p-3.5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-col">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`rounded px-1.5 py-0.5 font-label-tabular text-[11px] font-semibold ${
+                            r.type === "buy"
+                              ? "bg-secondary-container/50 text-on-secondary-container"
+                              : "bg-surface-container-high text-on-surface"
+                          }`}
+                        >
+                          {r.type === "buy" ? "BUY" : "SELL"}
+                        </span>
+                        <span className="truncate font-headline-md text-body-md font-bold tracking-tight text-on-surface">
+                          {r.symbol}
+                        </span>
+                        <span className="font-label-tabular text-label-tabular text-on-surface-variant">
+                          {fmtLots(r.volume, { cent })} lot
+                        </span>
+                      </div>
+                      <span className="mt-0.5 font-body-sm text-body-sm text-on-surface-variant">
+                        #{r.positionId}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end">
+                      <span
+                        className={`font-metric-display text-[1.25rem] font-bold leading-none ${
+                          win ? "text-secondary" : "text-on-tertiary-container"
+                        }`}
+                      >
+                        {signed(r.netProfit)}
+                      </span>
+                      <span
+                        className={`mt-1 font-label-caps text-label-caps uppercase ${
+                          win ? "text-secondary" : "text-on-tertiary-container"
+                        }`}
+                      >
+                        {win ? "Profit" : "Loss"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between rounded-lg bg-surface-container-low/50 px-2.5 py-1.5 font-label-tabular text-body-sm">
+                    <div className="flex items-center gap-1 text-on-surface">
+                      <span className="text-on-surface-variant">Harga:</span>
+                      <span>{r.openPrice.toFixed(5)}</span>
+                      <Icon name="trending_flat" className="text-[12px] text-on-surface-variant" />
+                      <span>{r.closePrice.toFixed(5)}</span>
+                    </div>
+                    <span className="font-body-sm text-body-sm text-on-surface-variant">
+                      {fmtDateTime(r.closeTime)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Pagination — mobile */}
+          <div className="flex items-center justify-between pt-1 font-body-sm text-body-sm text-on-surface-variant">
+            <span>
+              Halaman{" "}
+              <span className="font-semibold text-on-surface">{safePage}</span> dari{" "}
+              <span className="font-semibold text-on-surface">{totalPages}</span>
+            </span>
+            <div className="flex items-center gap-1">
+              {safePage > 1 && (
+                <Link
+                  href={base({ ...filterState, page: String(safePage - 1) })}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-container-low text-on-surface-variant transition-colors"
+                >
+                  <Icon name="chevron_left" className="text-[18px]" />
+                </Link>
+              )}
+              {safePage < totalPages && (
+                <Link
+                  href={base({ ...filterState, page: String(safePage + 1) })}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-container-lowest text-on-surface shadow-sm transition-colors hover:bg-surface-container-high"
+                >
+                  <Icon name="chevron_right" className="text-[18px]" />
                 </Link>
               )}
             </div>

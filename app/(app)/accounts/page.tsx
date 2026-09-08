@@ -171,22 +171,22 @@ export default function AccountsPage() {
   }, []);
 
   return (
-    <div className="w-full p-6">
+    <div className="w-full p-4 sm:p-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex flex-col">
+          <div className="flex min-w-0 flex-col">
             <div className="flex items-center gap-2">
-              <Icon name="manage_accounts" className="text-[22px] text-on-surface" />
-              <h1 className="font-headline-lg text-headline-lg tracking-tight text-on-surface">
+              <Icon name="manage_accounts" className="hidden text-[22px] text-on-surface sm:block" />
+              <h1 className="font-headline-lg-mobile text-headline-lg-mobile tracking-tight text-on-surface sm:font-headline-lg sm:text-headline-lg">
                 Akun Trading
               </h1>
             </div>
-            <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
+            <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant sm:font-body-md sm:text-body-md">
               Daftar akun MT5 yang dimonitor. Token dipakai bridge di VPS.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={refreshStatus}
@@ -489,7 +489,7 @@ export default function AccountsPage() {
                   </div>
 
                   {/* actions */}
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-outline-variant/20 pt-3">
+                  <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-outline-variant/20 pt-3 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -521,7 +521,7 @@ export default function AccountsPage() {
                       <button
                         type="button"
                         onClick={() => remove(a)}
-                        className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-body-sm text-body-sm font-medium text-error transition-colors hover:bg-error-container/40"
+                        className="inline-flex items-center gap-1 rounded-lg bg-error-container/30 px-3 py-1.5 font-body-sm text-body-sm font-medium text-error transition-colors hover:bg-error-container/60"
                       >
                         <Icon name="delete" className="text-[16px]" />
                         Hapus
@@ -536,7 +536,7 @@ export default function AccountsPage() {
 
         {/* Guide + diagnostics */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-6 shadow-sm lg:col-span-2">
+          <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-4 shadow-sm sm:p-6 lg:col-span-2">
             <div className="flex flex-col">
               <div className="flex items-center justify-between pb-3">
                 <div className="flex items-center gap-2">
@@ -646,7 +646,7 @@ export default function AccountsPage() {
           </div>
 
           {/* diagnostics */}
-          <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-6 shadow-sm">
+          <div className="flex flex-col justify-between rounded-xl bg-surface-container-lowest p-4 shadow-sm sm:p-6">
             <div className="flex flex-col">
               <div className="flex items-center justify-between pb-4">
                 <div className="flex items-center gap-2">
