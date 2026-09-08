@@ -133,7 +133,19 @@ body {
 }
 
 /* ---- Material Symbols Outlined ---- */
-.material-symbols-outlined {
+/* Self-hosted: tidak bergantung Google Fonts saat runtime. Font ikon yang
+   gagal dimuat membuat ikon tampil sebagai teks mentah (photo_camera, dll)
+   dan merusak layout. */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block; /* ikon = glyph struktural; block hindari flash teks */
+  src: url("/fonts/material-symbols-outlined.woff2") format("woff2");
+}
+
+.material-symbols-outlined,
+.material-symbols-rounded {
   font-family: "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
