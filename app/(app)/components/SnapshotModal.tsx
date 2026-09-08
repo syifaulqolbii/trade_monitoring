@@ -121,7 +121,7 @@ function drawHeader(
   ctx.textAlign = "left";
   ctx.fillStyle = C.text;
   ctx.font = font(700, 22);
-  ctx.fillText("Freebuff Monitor", 108, 58);
+  ctx.fillText("KuFXBuku", 108, 58);
   ctx.fillStyle = C.muted;
   ctx.font = font(500, 14);
   ctx.fillText(variantLabel, 108, 80);
@@ -176,7 +176,7 @@ function drawFooter(ctx: CanvasRenderingContext2D, d: SnapshotData) {
   ctx.fillStyle = C.faint;
   ctx.font = font(500, 12.5);
   ctx.textAlign = "left";
-  ctx.fillText("Freebuff Monitor · Telemetri MT5 real-time", 60, H - 40);
+  ctx.fillText("KuFXBuku · Trade Monitoring and Journal", 60, H - 40);
   if (d.privacy) {
     ctx.fillStyle = C.green;
     ctx.font = font(600, 12.5);
@@ -567,7 +567,7 @@ export default function SnapshotModal({
         canShare?: (d: { files?: File[] }) => boolean;
       };
       if (nav.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Freebuff Monitor" });
+        await navigator.share({ files: [file], title: "KuFXBuku | Trade Monitoring and Journal" });
         setCopied("Dibagikan");
       } else {
         await navigator.clipboard.write([

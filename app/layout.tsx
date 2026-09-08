@@ -17,9 +17,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Freebuff Monitor",
+  title: "KuFXBuku | Trade Monitoring and Journal",
   description:
-    "Monitoring trading ala Myfxbook: monthly lots, growth, equity, riwayat trade & posisi.",
+    "KuFXBuku — trade monitoring & journal ala Myfxbook: monthly lots, growth, equity, riwayat trade & posisi.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -54,14 +54,14 @@ export default function Sidebar({
         {/* Brand */}
         <div className="flex h-16 items-center gap-3 border-b border-outline-variant/20 px-5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-on-primary">
-            <Icon name="query_stats" className="text-[18px]" filled />
+            <Icon name="diamond" className="text-[18px]" filled />
           </div>
           <div className="flex min-w-0 flex-col leading-tight">
             <span className="truncate font-headline-md text-body-md font-bold tracking-tight text-on-surface">
-              Freebuff Monitor
+              KuFXBuku
             </span>
             <span className="mt-0.5 font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">
-              Trading Analytics
+              Trade Monitoring &amp; Journal
             </span>
           </div>
         </div>

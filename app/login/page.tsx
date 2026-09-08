@@ -47,13 +47,13 @@ function LoginForm() {
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 shadow-[0_1px_2px_0_rgba(15,23,42,0.04)]">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-on-primary">
-              <Icon name="query_stats" className="text-[24px]" filled />
+              <Icon name="diamond" className="text-[24px]" filled />
             </div>
             <h1 className="font-headline-md text-headline-md font-bold tracking-tight text-on-surface">
-              Freebuff Monitor
+              KuFXBuku
             </h1>
             <p className="mt-1 font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">
-              Trading Analytics
+              Trade Monitoring &amp; Journal
             </p>
           </div>
 
