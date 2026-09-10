@@ -427,6 +427,28 @@ export default async function DashboardPage({
                 <MetricValue value={fmtMoney(m.netProfit, { cent })} tone={tone(m.netProfit)} />
               </MetricCard>
 
+              {/* Cash Flow (Deposit / Withdraw) */}
+              <MetricCard
+                label="Cash Flow"
+                topRight={
+                  <Icon name="account_balance_wallet" className="text-[16px] text-outline" />
+                }
+                footerLeft={
+                  <span className="flex items-center gap-1 font-medium text-secondary">
+                    <Icon name="trending_up" className="text-[14px]" />
+                    {fmtMoney(m.deposits, { cent })}
+                  </span>
+                }
+                footerRight={
+                  <span className="flex items-center gap-1 font-medium text-error">
+                    <Icon name="trending_down" className="text-[14px]" />
+                    {fmtMoney(m.withdrawals, { cent })}
+                  </span>
+                }
+              >
+                <MetricValue value={fmtMoney(m.deposits, { cent })} tone={tone(m.deposits)} />
+              </MetricCard>
+
               {/* Max Drawdown */}
               <MetricCard
                 label="Max Drawdown"

@@ -78,6 +78,8 @@ export interface Metrics {
   totalTrades: number;
   totalLots: number;
   netProfit: number;
+  deposits: number; // total deposit (balance op positif)
+  withdrawals: number; // total withdrawal (balance op negatif, POSITIF nilainya)
   monthly: MonthlyStat[];
   equityCurve: EquityPoint[];
   startBalance: number;
@@ -250,6 +252,15 @@ export function computeMetrics(
     grossLoss === 0 ? (grossProfit > 0 ? Infinity : grossProfit === 0 ? null : 0) : grossProfit / grossLoss;
   const netProfit = closed.reduce((s, c) => s + c.netProfit, 0);
 
+  // ---- total cash flow (deposit/withdrawal) dalam rentang ----
+  const cashFlows = nonTradeFlows(deals);
+  let deposits = 0;
+  let withdrawals = 0;
+  for (const f of cashFlows) {
+    if (f.amount > 0) deposits += f.amount;
+    else withdrawals -= f.amount; // simpan positif
+  }
+
   // ---- total lots: volume deal buy/sell / 2 (tiap posisi dihitung sekali) ----
   const totalLots =
     deals
@@ -334,6 +345,8 @@ export function computeMetrics(
     totalTrades,
     totalLots,
     netProfit,
+    deposits,
+    withdrawals,
     monthly,
     equityCurve,
     startBalance,
