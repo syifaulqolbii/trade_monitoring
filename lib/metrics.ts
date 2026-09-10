@@ -206,7 +206,7 @@ export function computeMetrics(
   const equity = lastSnap?.equity ?? startBalance;
 
   // ---- drawdown dari equity curve ----
-  // Equity dikoreksi cashflow non-trading (deposit/withdrawal/bonus) setelah
+  // Equity dikoreksi cashflow non-trading (deposit/withdrawal) setelah
   // snapshot pertama — lompatan deposit tidak memicu peak palsu.
   const flows = nonTradeFlows(deals);
   const startT = snaps[0]?.t ?? 0;
@@ -224,19 +224,25 @@ export function computeMetrics(
     if (adj > runningMax) runningMax = adj;
     if (runningMax > 0) {
       const dd = ((runningMax - adj) / runningMax) * 100;
-      if (dd > maxDD) maxDD = dd;
+      if (dd > maxDD) maxDD = Math.min(100, dd);
     }
   }
   const adjEquity = equity - cumFlow;
   const currentDD =
-    runningMax > 0 ? ((runningMax - adjEquity) / runningMax) * 100 : 0;
+    runningMax > 0
+      ? Math.min(100, ((runningMax - adjEquity) / runningMax) * 100)
+      : 0;
 
   // ---- growth (equity) ----
   // Deposit/withdrawal tidak dihitung sebagai growth (ala Myfxbook).
-  const growthPct =
+  // Clamp -100: equity tidak bisa minus; koreksi yang meleset tidak boleh
+  // menghasilkan growth lebih negatif dari akun burnt.
+  const growthPct = Math.max(
+    -100,
     startEquity !== 0
       ? ((adjEquity - startEquity) / Math.abs(startEquity)) * 100
-      : 0;
+      : 0
+  );
 
   // ---- win rate & profit factor dari posisi tertutup ----
   const totalTrades = closed.length;
@@ -353,17 +359,15 @@ export interface GrowthDDPoint {
   ddPct: number; // underwater drawdown NEGATIF: -(peak-equity)/peak*100
 }
 
-/** Deal kas non-trading (deposit/withdrawal/bonus): balance/credit op.
- *  Amount = field profit (MT5 menyimpan nilai deposit di situ). */
+/** Deal kas non-trading (deposit/withdrawal): balance op (type 2).
+ *  Credit/bonus (type 3) SENGAJA dikecualikan — credit adalah komponen equity
+ *  (equity = balance + credit + floating), bukan cash flow. Mengurangi equity
+ *  dengan credit = double count → growth < -100%. */
 export function nonTradeFlows(
   deals: DealInput[]
 ): { t: number; amount: number }[] {
   return deals
-    .filter(
-      (d) =>
-        (!d.positionId || d.positionId === "0") &&
-        (d.type === 2 || d.type === 3)
-    )
+    .filter((d) => (!d.positionId || d.positionId === "0") && d.type === 2)
     .map((d) => ({ t: asDate(d.time).getTime(), amount: d.profit }))
     .sort((a, b) => a.t - b.t);
 }
@@ -394,10 +398,14 @@ export function growthDrawdownSeries(
     }
     const adj = s.equity - cum;
     if (adj > runningMax) runningMax = adj;
-    const growthPct =
-      first !== 0 ? ((adj - first) / Math.abs(first)) * 100 : 0;
+    const growthPct = Math.max(
+      -100,
+      first !== 0 ? ((adj - first) / Math.abs(first)) * 100 : 0
+    );
     const ddPct =
-      runningMax > 0 ? -((runningMax - adj) / runningMax) * 100 : 0;
+      runningMax > 0
+        ? Math.max(-100, -((runningMax - adj) / runningMax) * 100)
+        : 0;
     out.push({ t: s.t, growthPct, ddPct });
   }
   return out;

@@ -204,6 +204,35 @@ describe("computeMetrics", () => {
     expect(m.growthPct).toBeCloseTo(0, 5); // naik 500 murni deposit
   });
 
+  it("credit/bonus (type 3) tidak mengurangi growth — komponen equity, bukan cash flow", () => {
+    const deals = [
+      deal({ ticket: "b1", positionId: "0", type: 3, direction: 0, volume: 0, symbol: "", profit: 500, time: d("2026-01-02T00:00:00Z") }),
+    ];
+    const snaps: SnapshotInput[] = [
+      { balance: 1000, equity: 1000, createdAt: d("2026-01-01T00:00:00Z") },
+      { balance: 1000, equity: 1500, createdAt: d("2026-02-01T00:00:00Z") }, // +500 credit di equity
+    ];
+    const m = computeMetrics(deals, [], snaps);
+    expect(m.growthPct).toBeCloseTo(50, 5); // dulu: (1500-500-1000)/1000 = 0 atau negatif
+  });
+
+  it("growth & drawdown di-clamp: tidak kurang dari -100% / lebih dari 100%", () => {
+    const deals = [
+      deal({ ticket: "b1", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 6000, time: d("2026-01-10T00:00:00Z") }),
+    ];
+    const snaps: SnapshotInput[] = [
+      { balance: 1000, equity: 1000, createdAt: d("2026-01-01T00:00:00Z") },
+      { balance: 7000, equity: 5000, createdAt: d("2026-01-20T00:00:00Z") },
+    ];
+    const m = computeMetrics(deals, [], snaps);
+    expect(m.growthPct).toBe(-100);
+    expect(m.maxDrawdownPct).toBe(100);
+
+    const series = growthDrawdownSeries(snaps, deals);
+    expect(series[1].growthPct).toBe(-100);
+    expect(series[1].ddPct).toBe(-100);
+  });
+
   it("growth menghitung trading profit & withdrawal netral", () => {
     const deals = [
       ...closedPosition("1", "2026-01-02T08:00:00Z", "2026-01-03T08:00:00Z", 200),
