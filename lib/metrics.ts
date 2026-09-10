@@ -206,21 +206,37 @@ export function computeMetrics(
   const equity = lastSnap?.equity ?? startBalance;
 
   // ---- drawdown dari equity curve ----
+  // Equity dikoreksi cashflow non-trading (deposit/withdrawal/bonus) setelah
+  // snapshot pertama — lompatan deposit tidak memicu peak palsu.
+  const flows = nonTradeFlows(deals);
+  const startT = snaps[0]?.t ?? 0;
+  let flowIdx = 0;
+  while (flowIdx < flows.length && flows[flowIdx].t <= startT) flowIdx++; // sebelum baseline = bagian modal awal
+  let cumFlow = 0;
   let runningMax = -Infinity;
   let maxDD = 0;
   for (const s of snaps) {
-    if (s.equity > runningMax) runningMax = s.equity;
+    while (flowIdx < flows.length && flows[flowIdx].t <= s.t) {
+      cumFlow += flows[flowIdx].amount;
+      flowIdx++;
+    }
+    const adj = s.equity - cumFlow;
+    if (adj > runningMax) runningMax = adj;
     if (runningMax > 0) {
-      const dd = ((runningMax - s.equity) / runningMax) * 100;
+      const dd = ((runningMax - adj) / runningMax) * 100;
       if (dd > maxDD) maxDD = dd;
     }
   }
+  const adjEquity = equity - cumFlow;
   const currentDD =
-    runningMax > 0 ? ((runningMax - equity) / runningMax) * 100 : 0;
+    runningMax > 0 ? ((runningMax - adjEquity) / runningMax) * 100 : 0;
 
   // ---- growth (equity) ----
+  // Deposit/withdrawal tidak dihitung sebagai growth (ala Myfxbook).
   const growthPct =
-    startEquity !== 0 ? ((equity - startEquity) / Math.abs(startEquity)) * 100 : 0;
+    startEquity !== 0
+      ? ((adjEquity - startEquity) / Math.abs(startEquity)) * 100
+      : 0;
 
   // ---- win rate & profit factor dari posisi tertutup ----
   const totalTrades = closed.length;
@@ -337,23 +353,51 @@ export interface GrowthDDPoint {
   ddPct: number; // underwater drawdown NEGATIF: -(peak-equity)/peak*100
 }
 
-/** Kurva "pertumbuhan relatif" + "underwater drawdown" per snapshot. */
+/** Deal kas non-trading (deposit/withdrawal/bonus): balance/credit op.
+ *  Amount = field profit (MT5 menyimpan nilai deposit di situ). */
+export function nonTradeFlows(
+  deals: DealInput[]
+): { t: number; amount: number }[] {
+  return deals
+    .filter(
+      (d) =>
+        (!d.positionId || d.positionId === "0") &&
+        (d.type === 2 || d.type === 3)
+    )
+    .map((d) => ({ t: asDate(d.time).getTime(), amount: d.profit }))
+    .sort((a, b) => a.t - b.t);
+}
+
+/** Kurva "pertumbuhan relatif" + "underwater drawdown" per snapshot.
+ *  Equity dikoreksi cashflow non-trading (deposit/withdrawal/bonus) setelah
+ *  snapshot pertama — deposit tidak lagi terhitung sebagai growth. */
 export function growthDrawdownSeries(
-  snapshots: SnapshotInput[]
+  snapshots: SnapshotInput[],
+  deals: DealInput[] = []
 ): GrowthDDPoint[] {
   const snaps = [...snapshots]
     .map((s) => ({ equity: s.equity, t: asDate(s.createdAt).getTime() }))
     .sort((a, b) => a.t - b.t);
   if (snaps.length === 0) return [];
+  const flows = nonTradeFlows(deals);
+  const t0 = snaps[0].t;
+  let flowIdx = 0;
+  while (flowIdx < flows.length && flows[flowIdx].t <= t0) flowIdx++; // sebelum baseline = bagian startEquity
   const first = snaps[0].equity;
   let runningMax = -Infinity;
+  let cum = 0;
   const out: GrowthDDPoint[] = [];
   for (const s of snaps) {
-    if (s.equity > runningMax) runningMax = s.equity;
+    while (flowIdx < flows.length && flows[flowIdx].t <= s.t) {
+      cum += flows[flowIdx].amount;
+      flowIdx++;
+    }
+    const adj = s.equity - cum;
+    if (adj > runningMax) runningMax = adj;
     const growthPct =
-      first !== 0 ? ((s.equity - first) / Math.abs(first)) * 100 : 0;
+      first !== 0 ? ((adj - first) / Math.abs(first)) * 100 : 0;
     const ddPct =
-      runningMax > 0 ? -((runningMax - s.equity) / runningMax) * 100 : 0;
+      runningMax > 0 ? -((runningMax - adj) / runningMax) * 100 : 0;
     out.push({ t: s.t, growthPct, ddPct });
   }
   return out;

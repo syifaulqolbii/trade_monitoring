@@ -101,7 +101,7 @@ export async function loadAccountMetrics(
     lastSyncAt: account.lastSyncAt,
     metrics,
     openSummary,
-    growthDD: growthDrawdownSeries(snapshots),
+    growthDD: growthDrawdownSeries(snapshots, deals),
     symbolStats: symbolStats(deals),
     raw: account,
   };
