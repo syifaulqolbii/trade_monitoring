@@ -205,42 +205,34 @@ export function computeMetrics(
   const balance = lastSnap?.balance ?? startBalance;
   const equity = lastSnap?.equity ?? startBalance;
 
-  // ---- drawdown dari equity curve ----
-  // Equity dikoreksi cashflow non-trading (deposit/withdrawal) setelah
-  // snapshot pertama — lompatan deposit tidak memicu peak palsu.
-  const flows = nonTradeFlows(deals);
-  const startT = snaps[0]?.t ?? 0;
-  let flowIdx = 0;
-  while (flowIdx < flows.length && flows[flowIdx].t <= startT) flowIdx++; // sebelum baseline = bagian modal awal
-  let cumFlow = 0;
+  // ---- drawdown & growth dari equity yang dikoreksi cash flow ----
+  const { cumFlow, denom } = balanceAnchoredFlows(snaps, deals);
   let runningMax = -Infinity;
   let maxDD = 0;
-  for (const s of snaps) {
-    while (flowIdx < flows.length && flows[flowIdx].t <= s.t) {
-      cumFlow += flows[flowIdx].amount;
-      flowIdx++;
-    }
-    const adj = s.equity - cumFlow;
+  for (let i = 0; i < snaps.length; i++) {
+    const adj = snaps[i].equity - cumFlow[i];
     if (adj > runningMax) runningMax = adj;
     if (runningMax > 0) {
       const dd = ((runningMax - adj) / runningMax) * 100;
       if (dd > maxDD) maxDD = Math.min(100, dd);
     }
   }
-  const adjEquity = equity - cumFlow;
+  const adjEquity = equity - (cumFlow.length ? cumFlow[cumFlow.length - 1] : 0);
   const currentDD =
     runningMax > 0
       ? Math.min(100, ((runningMax - adjEquity) / runningMax) * 100)
       : 0;
 
   // ---- growth (equity) ----
-  // Deposit/withdrawal tidak dihitung sebagai growth (ala Myfxbook).
-  // Clamp -100: equity tidak bisa minus; koreksi yang meleset tidak boleh
-  // menghasilkan growth lebih negatif dari akun burnt.
+  // Numerator = trading P/L murni + floating (deposit/withdrawal sudah
+  // dikoreksi). Penyebut = modal bersih terpasang (baseline + deposit
+  // setelah baseline), bukan baseline mentah — deposit besar setelah
+  // monitoring mulai tidak lagi membuat growth terlihat berlebihan.
+  // Clamp -100: equity tidak bisa minus.
   const growthPct = Math.max(
     -100,
-    startEquity !== 0
-      ? ((adjEquity - startEquity) / Math.abs(startEquity)) * 100
+    denom !== 0
+      ? ((adjEquity - startEquity) / Math.abs(denom)) * 100
       : 0
   );
 
@@ -372,41 +364,129 @@ export function nonTradeFlows(
     .sort((a, b) => a.t - b.t);
 }
 
+/**
+ * Cash flow (deposit/withdrawal) yang sudah dikoreksi terhadap balance snapshot.
+ *
+ * Masalah yang diselesaikan: deal MT5 memakai waktu SERVER broker (umumnya
+ * UTC+2/+3) sedangkan snapshot memakai UTC. Membandingkan keduanya mentah
+ * membuat deposit yang terjadi SEBELUM snapshot pertama terbaca SESUDAHNYA —
+ * efeknya sudah termasuk di baseline equity tapi ikut dikurangi lagi →
+ * adjusted equity jebol negatif → growth/DD mustahil (-177%, 123%).
+ *
+ * Koreksi dua lapis (balance = sumber kebenaran, selalu UTC):
+ * 1. TRIM via identitas balance:
+ *      Σflow_seharusnya = (bal_akhir - bal_awal) - ΣprofitTrading
+ *    Kelebihan Σflow deal = deposit ganda (sudah di baseline) → dibuang
+ *    dari flow tertua.
+ * 2. ASSIGN via lompatan balance: tiap flow tersisa dipetakan ke interval
+ *    snapshot tempat balance melompat ≈ nominal flow (±toleransi) — bebas
+ *    timezone. Fallback: posisi waktu deal mentah.
+ *
+ * Return cumFlow per titik snapshot + denom (modal bersih terpasang =
+ * baseline + flow tersisa) sebagai penyebut growth.
+ */
+function balanceAnchoredFlows(
+  snaps: { balance: number; t: number }[],
+  deals: DealInput[]
+): { cumFlow: number[]; denom: number } {
+  const n = snaps.length;
+  const cumFlow = new Array<number>(n).fill(0);
+  if (n === 0) return { cumFlow, denom: 0 };
+
+  const startT = snaps[0].t;
+  const flows = nonTradeFlows(deals).filter((f) => f.t > startT);
+  if (flows.length === 0) {
+    return { cumFlow, denom: Math.abs(snaps[0].balance) };
+  }
+
+  // -- 1. trim deposit ganda via identitas balance --
+  const tradePL = buildClosedPositions(deals)
+    .filter((c) => c.closeTime.getTime() > startT)
+    .reduce((s, c) => s + c.netProfit, 0);
+  const balStart = snaps[0].balance;
+  const balEnd = snaps[n - 1].balance;
+  const trueTotalFlow = balEnd - balStart - tradePL;
+  let excess = flows.reduce((s, f) => s + f.amount, 0) - trueTotalFlow;
+
+  const survivors: { amount: number; t: number }[] = [];
+  for (const f of flows) {
+    let amount = f.amount;
+    if (excess > 0) {
+      const cut = Math.min(excess, amount);
+      amount -= cut;
+      excess -= cut;
+    }
+    if (Math.abs(amount) > 1e-9) survivors.push({ amount, t: f.t });
+  }
+
+  // -- 2. assign ke interval via lompatan balance --
+  const at = new Array<number>(n).fill(0);
+  const used = new Array<boolean>(n).fill(false);
+  for (const f of survivors) {
+    let matched = -1;
+    for (let i = 1; i < n; i++) {
+      if (used[i]) continue;
+      const jump = snaps[i].balance - snaps[i - 1].balance;
+      if (
+        Math.sign(jump) === Math.sign(f.amount) &&
+        Math.abs(jump - f.amount) <= Math.max(0.011, Math.abs(f.amount) * 0.001)
+      ) {
+        matched = i;
+        break;
+      }
+    }
+    if (matched < 0) {
+      // fallback: waktu deal mentah
+      let j = 1;
+      while (j < n && snaps[j].t < f.t) j++;
+      matched = Math.min(j, n - 1);
+    }
+    used[matched] = true;
+    at[matched] += f.amount;
+  }
+
+  let run = 0;
+  for (let i = 0; i < n; i++) {
+    run += at[i];
+    cumFlow[i] = run;
+  }
+  const denomRaw = snaps[0].balance + survivors.reduce((s, f) => s + f.amount, 0);
+  const denom = Math.abs(denomRaw) > 1e-9 ? denomRaw : Math.abs(snaps[0].balance);
+  return { cumFlow, denom };
+}
+
 /** Kurva "pertumbuhan relatif" + "underwater drawdown" per snapshot.
- *  Equity dikoreksi cashflow non-trading (deposit/withdrawal/bonus) setelah
- *  snapshot pertama — deposit tidak lagi terhitung sebagai growth. */
+ *  Equity dikoreksi cash flow non-trading (lihat balanceAnchoredFlows);
+ *  growth relatif terhadap modal bersih terpasang (denom), bukan baseline
+ *  mentah — deposit setelah monitoring mulai tidak menggelembungkan %. */
 export function growthDrawdownSeries(
   snapshots: SnapshotInput[],
   deals: DealInput[] = []
 ): GrowthDDPoint[] {
   const snaps = [...snapshots]
-    .map((s) => ({ equity: s.equity, t: asDate(s.createdAt).getTime() }))
+    .map((s) => ({
+      balance: s.balance,
+      equity: s.equity,
+      t: asDate(s.createdAt).getTime(),
+    }))
     .sort((a, b) => a.t - b.t);
   if (snaps.length === 0) return [];
-  const flows = nonTradeFlows(deals);
-  const t0 = snaps[0].t;
-  let flowIdx = 0;
-  while (flowIdx < flows.length && flows[flowIdx].t <= t0) flowIdx++; // sebelum baseline = bagian startEquity
+  const { cumFlow, denom } = balanceAnchoredFlows(snaps, deals);
   const first = snaps[0].equity;
   let runningMax = -Infinity;
-  let cum = 0;
   const out: GrowthDDPoint[] = [];
-  for (const s of snaps) {
-    while (flowIdx < flows.length && flows[flowIdx].t <= s.t) {
-      cum += flows[flowIdx].amount;
-      flowIdx++;
-    }
-    const adj = s.equity - cum;
+  for (let i = 0; i < snaps.length; i++) {
+    const adj = snaps[i].equity - cumFlow[i];
     if (adj > runningMax) runningMax = adj;
     const growthPct = Math.max(
       -100,
-      first !== 0 ? ((adj - first) / Math.abs(first)) * 100 : 0
+      denom !== 0 ? ((adj - first) / Math.abs(denom)) * 100 : 0
     );
     const ddPct =
       runningMax > 0
         ? Math.max(-100, -((runningMax - adj) / runningMax) * 100)
         : 0;
-    out.push({ t: s.t, growthPct, ddPct });
+    out.push({ t: snaps[i].t, growthPct, ddPct });
   }
   return out;
 }

@@ -222,18 +222,43 @@ describe("computeMetrics", () => {
     ];
     const snaps: SnapshotInput[] = [
       { balance: 1000, equity: 1000, createdAt: d("2026-01-01T00:00:00Z") },
-      { balance: 7000, equity: 5000, createdAt: d("2026-01-20T00:00:00Z") },
+      // equity -500 sintetis (tak fisik) khusus menguji clamp
+      { balance: 7000, equity: -500, createdAt: d("2026-01-20T00:00:00Z") },
     ];
     const m = computeMetrics(deals, [], snaps);
-    expect(m.growthPct).toBe(-100);
-    expect(m.maxDrawdownPct).toBe(100);
+    expect(m.growthPct).toBe(-100); // raw: (-6500-1000)/7000 = -107%
+    expect(m.maxDrawdownPct).toBe(100); // raw: (1000+6500)/1000 = 750%
 
     const series = growthDrawdownSeries(snaps, deals);
     expect(series[1].growthPct).toBe(-100);
     expect(series[1].ddPct).toBe(-100);
   });
 
-  it("growth menghitung trading profit & withdrawal netral", () => {
+  it("deposit sebelum baseline (waktu broker maju) TIDAK double count", () => {
+    // Simulasi kasus VPS: deposit #1+#2 (40229.54) sudah masuk baseline,
+    // tapi deal time broker (+3h) terbaca SETELAH snapshot pertama.
+    const deals = [
+      deal({ ticket: "d1", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 10200, time: d("2026-09-08T18:42:21Z") }),
+      deal({ ticket: "d2", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 30029.54, time: d("2026-09-08T18:46:29Z") }),
+      deal({ ticket: "d3", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 5150, time: d("2026-09-08T19:29:12Z") }),
+      ...closedPosition("1", "2026-09-09T08:00:00Z", "2026-09-09T09:00:00Z", -7044.94),
+    ];
+    const snaps: SnapshotInput[] = [
+      { balance: 40229.54, equity: 40229.54, createdAt: d("2026-09-08T16:04:11Z") }, // baseline = d1+d2
+      { balance: 45379.54, equity: 45379.54, createdAt: d("2026-09-08T16:30:00Z") }, // setelah d3
+      { balance: 38334.6, equity: 38334.6, createdAt: d("2026-09-10T08:48:52Z") }, // trading -7044.94
+    ];
+    const m = computeMetrics(deals, [], snaps);
+    // growth = -7044.94 / modal bersih 45379.54 = -15.52% (bukan -117%/-177%)
+    expect(m.growthPct).toBeCloseTo(-15.52, 1);
+    // DD relatif peak adjusted (= baseline 40229.54): 7044.94/40229.54 = 17.51%
+    expect(m.maxDrawdownPct).toBeCloseTo(17.51, 1);
+
+    const series = growthDrawdownSeries(snaps, deals);
+    expect(series[2].growthPct).toBeCloseTo(-15.52, 1);
+  });
+
+  it("growth menghitung trading profit; withdrawal mengurangi modal bersih", () => {
     const deals = [
       ...closedPosition("1", "2026-01-02T08:00:00Z", "2026-01-03T08:00:00Z", 200),
       // withdrawal -400: equity turun 400, dikembalikan oleh koreksi
@@ -244,7 +269,8 @@ describe("computeMetrics", () => {
       { balance: 800, equity: 800, createdAt: d("2026-02-01T00:00:00Z") },
     ];
     const m = computeMetrics(deals, [], snaps);
-    expect(m.growthPct).toBeCloseTo(20, 5); // 800 + 400 = 1200 vs 1000
+    // 200 profit / modal bersih 600 (1000 - 400 WD) = 33.33%
+    expect(m.growthPct).toBeCloseTo(33.333, 2);
   });
 
   it("menghitung max drawdown dari kurva equity", () => {
@@ -261,6 +287,7 @@ describe("computeMetrics", () => {
 
   it("deposit tidak memicu peak palsu pada drawdown", () => {
     const deals = [
+      ...closedPosition("1", "2026-01-12T08:00:00Z", "2026-01-25T08:00:00Z", -50),
       deal({ ticket: "b1", positionId: "0", type: 2, direction: 0, volume: 0, symbol: "", profit: 500, time: d("2026-01-10T00:00:00Z") }),
     ];
     const snaps: SnapshotInput[] = [
