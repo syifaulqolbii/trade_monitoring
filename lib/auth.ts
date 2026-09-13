@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import {
   SESSION_COOKIE,
-  createSession,
   verifySession,
   type SessionValue,
 } from "./session";

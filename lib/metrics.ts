@@ -181,14 +181,13 @@ export function monthKey(d: Date | string): string {
   return monthKeyOf(asDate(d));
 }
 
-/** Hitung semua metrik utama dari data akun. */
+/** Hitung semua metrik utama dari data akun.
+ *  Konversi USC→USD tidak dilakukan di sini — tampilan memakai fmtMoney({cent}). */
 export function computeMetrics(
   deals: DealInput[],
   positions: PositionInput[],
-  snapshots: SnapshotInput[],
-  opts: { cent?: boolean } = {}
+  snapshots: SnapshotInput[]
 ): Metrics {
-  const cent = opts.cent ?? false;
   const closed = buildClosedPositions(deals);
 
   // ---- snapshot terurut ----
@@ -549,8 +548,7 @@ export function symbolStats(deals: DealInput[]): SymbolStat[] {
 
 /** Statistik singkat untuk posisi terbuka (untuk tabel & kartu). */
 export function openPositionsSummary(
-  positions: PositionInput[],
-  opts: { cent?: boolean } = {}
+  positions: PositionInput[]
 ): { count: number; volume: number; profit: number; swap: number } {
   return positions.reduce(
     (acc, p) => {

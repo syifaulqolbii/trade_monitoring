@@ -26,17 +26,15 @@ function timeAgo(iso: string | null): string {
 export default function Sidebar({
   username,
   lastSyncAt,
+  fresh,
 }: {
   username: string;
   lastSyncAt: string | null;
+  fresh: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-
-  const fresh = lastSyncAt
-    ? Date.now() - new Date(lastSyncAt).getTime() < 10 * 60 * 1000
-    : false;
 
   async function logout() {
     setLoggingOut(true);

@@ -5,7 +5,9 @@ import { buildHistory, filterRows, type DealRow } from "@/lib/history";
 export const dynamic = "force-dynamic";
 
 function csvCell(v: string | number): string {
-  const s = String(v);
+  let s = String(v);
+  // guard formula injection Excel/Sheets: awal =,+,-,@ diawali apostrof
+  if (/^[=+\-@\t\r]/.test(s) && typeof v === "string") s = `'${s}`;
   if (/[";\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

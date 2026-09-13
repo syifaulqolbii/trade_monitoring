@@ -84,11 +84,9 @@ export async function loadAccountMetrics(
     }),
   ]);
 
-  const metrics = computeMetrics(deals, positions, snapshots, {
-    cent: account.cent,
-  });
+  const metrics = computeMetrics(deals, positions, snapshots);
 
-  const openSummary = openPositionsSummary(positions, { cent: account.cent });
+  const openSummary = openPositionsSummary(positions);
 
   return {
     id: account.id,

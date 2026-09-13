@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { createHmac } from "node:crypto";
 import { encryptSecret, decryptSecret, safeEqual } from "@/lib/crypto";
 import { createSession, verifySession } from "@/lib/session";
 
@@ -55,7 +56,6 @@ describe("session: tanda tangan HMAC", () => {
       JSON.stringify({ username: "admin", exp: Date.now() - 1000 })
     ).toString("base64url");
     // tanda tangani manual dengan secret yang sama
-    const { createHmac } = require("node:crypto") as typeof import("node:crypto");
     const sig = createHmac("sha256", "test-secret")
       .update(expired)
       .digest("base64url");

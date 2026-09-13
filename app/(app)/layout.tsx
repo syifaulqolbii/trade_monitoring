@@ -10,6 +10,13 @@ import BottomNav from "./components/BottomNav";
 import PrivacyProvider from "./components/PrivacyProvider";
 import AutoRefresh from "./components/AutoRefresh";
 
+/** Umur sinkronisasi terakhir < 10 menit = bridge live.
+ *  Date.now() disembunyikan di helper agar tak dianggap impure saat render. */
+function isBridgeFresh(lastSyncAt: string | null): boolean {
+  if (!lastSyncAt) return false;
+  return Date.now() - new Date(lastSyncAt).getTime() < 10 * 60 * 1000;
+}
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -39,13 +46,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       return !acc || t > acc ? t : acc;
     }, null) ?? null;
 
+  // dilakukan sekali per request di server, bukan render client
+  const bridgeFresh = isBridgeFresh(lastSyncAt);
+
   return (
     <PrivacyProvider initial={privacyOn}>
       <AutoRefresh seconds={30} />
       <div className="min-h-screen bg-surface">
         {/* Sidebar desktop — tersembunyi di mobile, diganti bottom nav */}
         <div className="hidden lg:block">
-          <Sidebar username={session.username} lastSyncAt={lastSyncAt} />
+          <Sidebar
+            username={session.username}
+            lastSyncAt={lastSyncAt}
+            fresh={bridgeFresh}
+          />
         </div>
         <div className="lg:pl-64">
           <Topbar

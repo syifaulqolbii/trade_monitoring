@@ -47,3 +47,8 @@ __pycache__/
 
 # freebuff client metadata
 .freebuff/
+
+# artefak sandbox: mockup stitch, zip, chart png
+/stitch_minimalist_website_*/
+*.zip
+/freebuff-growth-chart-*.png

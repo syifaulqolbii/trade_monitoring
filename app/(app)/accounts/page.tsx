@@ -75,12 +75,12 @@ export default function AccountsPage() {
   const [spinning, setSpinning] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/accounts");
       if (!res.ok) throw new Error("Gagal memuat akun");
       const data = await res.json();
       setAccounts(data.accounts);
+      setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memuat akun");
     } finally {
@@ -89,6 +89,7 @@ export default function AccountsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch data di mount; setState terjadi di promise callback, bukan sync
     load();
   }, [load]);
 
@@ -96,9 +97,7 @@ export default function AccountsPage() {
     setSpinning(true);
     await load();
     setSpinning(false);
-  }
-
-  async function save(input: AccountInput) {
+  }  async function save(input: AccountInput) {
     setSaving(true);
     setError(null);
     try {
@@ -167,6 +166,7 @@ export default function AccountsPage() {
   const allHealthy = accounts.length > 0 && nodesLive === accounts.length;
   const [origin, setOrigin] = useState("");
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sinkronisasi nilai dari window (external system), hanya sekali di client
     setOrigin(window.location.origin);
   }, []);
 
@@ -330,7 +330,7 @@ export default function AccountsPage() {
               Belum ada akun
             </p>
             <p className="font-body-sm text-body-sm text-on-surface-variant">
-              Klik "+ Tambah Akun" untuk mulai.
+              Klik &quot;+ Tambah Akun&quot; untuk mulai.
             </p>
           </div>
         ) : (

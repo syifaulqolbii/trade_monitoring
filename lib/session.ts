@@ -10,7 +10,12 @@ export const SESSION_COOKIE = "freebuff_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 
 function getSecret(): string {
-  return process.env.SESSION_SECRET ?? "freebuff-dev-secret-change-me";
+  const secret = process.env.SESSION_SECRET;
+  // Produksi tanpa secret = session bisa dipalsukan siapa pun — tolak keras.
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET wajib di-set di .env (32 byte hex)");
+  }
+  return secret ?? "freebuff-dev-secret-change-me"; // default khusus dev
 }
 
 export function sign(payload: string): string {

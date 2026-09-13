@@ -350,7 +350,7 @@ describe("computeMetrics", () => {
       { balance: 100000, equity: 101000, createdAt: d("2026-01-01T00:00:00Z") },
       { balance: 100000, equity: 101000, createdAt: d("2026-01-02T00:00:00Z") },
     ];
-    const m = computeMetrics([], [pos], snaps, { cent: true });
+    const m = computeMetrics([], [pos], snaps);
     expect(m.balance).toBe(100000);
     expect(toUsd(m.equity, true)).toBe(1010);
   });

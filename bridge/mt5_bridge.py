@@ -61,7 +61,12 @@ DEFAULT_CONFIG = {
 _connected_login = None
 
 
+# Cache login akun dari config (untuk migrasi state lama).
+_cfg_accounts_cache = []
+
+
 def load_config():
+    global _cfg_accounts_cache
     if not CONFIG_PATH.exists():
         print(f"[FATAL] File {CONFIG_PATH} tidak ditemukan.")
         print("        Salin config.example.json -> config.json lalu isi datanya.")
@@ -70,6 +75,7 @@ def load_config():
         cfg = json.load(f)
     for k, v in DEFAULT_CONFIG.items():
         cfg.setdefault(k, v)
+    _cfg_accounts_cache = cfg.get("accounts", [])
     return cfg
 
 
@@ -77,7 +83,15 @@ def load_state():
     if STATE_PATH.exists():
         try:
             with open(STATE_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Migrasi format lama (state global) → per-login. Login diambil
+            # dari config; lama dipakai sebagai fallback bila akun tunggal.
+            if data and not any(isinstance(v, dict) for v in data.values()):
+                logins = [str(a.get("login")) for a in _cfg_accounts_cache or []]
+                if len(logins) == 1:
+                    return {logins[0]: data}
+                return {}
+            return data
         except Exception:
             return {}
     return {}
@@ -209,10 +223,11 @@ def ensure_connected(cfg, account):
     return True
 
 
-def collect_account(cfg, account, state, backfill_days=None):
-    """Ambil data akun dari sesi MT5 yang sudah hidup."""
+def collect_account(cfg, account, states, backfill_days=None):
+    """Ambil data akun dari sesi MT5 yang sudah hidup.
+    `states` = dict state per-login (dipakai/di-update via key login)."""
     if not ensure_connected(cfg, account):
-        return None, None
+        return None, None, None
 
     # Account info
     info = mt5.account_info()
@@ -220,7 +235,7 @@ def collect_account(cfg, account, state, backfill_days=None):
         code = mt5.last_error()
         print(f"  [ERROR] account_info gagal ({code}).")
         disconnect_mt5()
-        return None, None
+        return None, None, None
 
     account_data = {
         "login": str(info.login),
@@ -256,6 +271,9 @@ def collect_account(cfg, account, state, backfill_days=None):
             })
     except Exception as e:
         print(f"  [WARN] Gagal baca posisi: {e}")
+
+    # State per-login: akun ganda tidak saling tumpuk last_deal_time.
+    state = states.get(str(account.get("login")), {})
 
     # Deal history
     # Catatan: history_deals_get membaca cache lokal terminal yang bisa STALE
@@ -340,13 +358,13 @@ def collect_account(cfg, account, state, backfill_days=None):
         "positions": positions,
         "deals": deals,
     }
-    return payload, max_deal_time
+    return payload, max_deal_time, state
 
 
 def main():
     backfill_days = parse_args()
     cfg = load_config()
-    state = load_state()
+    states = load_state()  # { "<login>": { per-account state } }
 
     app_url = cfg.get("app_url", "").rstrip("/")
     interval = max(5, int(cfg.get("interval", 30)))
@@ -367,11 +385,12 @@ def main():
     while True:
         for account in cfg["accounts"]:
             name = account.get("name", account.get("login", "?"))
+            login_key = str(account.get("login"))
             print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Sinkronisasi: {name}")
             # Guard terakhir: satu exception tak terduga tidak boleh mematikan
             # seluruh bridge — cukup lewati siklus ini.
             try:
-                payload, max_deal_time = collect_account(cfg, account, state, backfill_days)
+                payload, max_deal_time, acc_state = collect_account(cfg, account, states, backfill_days)
                 if payload is None:
                     print(f"  [SKIP] {name} dilewati (gagal konek).")
                     continue
@@ -393,44 +412,39 @@ def main():
                 except Exception:
                     print(f"  [OK] Server menerima data.")
 
-                if backfill_days is not None:
-                    print("  [BACKFILL] Selesai. Jalankan ulang bridge TANPA opsi ini "
-                          "untuk mode normal.")
-                    sys.exit(0)
-
                 # Deteksi history cache stale: balance berubah tapi tidak ada
                 # deal baru selama beberapa siklus beruntun. Bandingkan dengan
                 # balance SAAT streak stale dimulai (bukan siklus sebelumnya).
                 balance = payload["account"]["balance"]
-                stale = 0 if deals_added > 0 else int(state.get("stale_cycles", 0)) + 1
+                stale = 0 if deals_added > 0 else int(acc_state.get("stale_cycles", 0)) + 1
                 if stale == 1:
-                    state["stale_start_balance"] = balance
+                    acc_state["stale_start_balance"] = balance
                 elif stale == 10:
-                    start_bal = state.get("stale_start_balance")
+                    start_bal = acc_state.get("stale_start_balance")
                     if start_bal is not None and abs(balance - start_bal) > 0.001:
                         print("  [WARN] Balance berubah tapi tidak ada deal baru dari terminal.")
                         print("         History cache MT5 kemungkinan stale. Buka MT5 → Toolbox →")
                         print("         tab History → klik kanan → 'All History', atau restart terminal.")
                         print("         Bridge akan backfill otomatis begitu cache menyegarkan.")
                 if stale == 0:
-                    state.pop("stale_start_balance", None)
-                state["stale_cycles"] = stale
-                state["last_balance"] = balance
+                    acc_state.pop("stale_start_balance", None)
+                acc_state["stale_cycles"] = stale
+                acc_state["last_balance"] = balance
 
                 if max_deal_time is not None:
                     # iso() menangani int (unix detik) maupun datetime.
                     # Jangan pernah mundur: pakai yang paling baru.
                     new_iso = iso(max_deal_time)
-                    prev_iso = state.get("last_deal_time")
+                    prev_iso = acc_state.get("last_deal_time")
                     if not prev_iso or (new_iso or "") > prev_iso:
-                        state["last_deal_time"] = new_iso
-                save_state(state)
-            elif status == 401:
-                print(f"  [ERROR] Token ditolak server. Cek token akun di halaman Akun.")
-            elif status == 400:
-                print(f"  [ERROR] Payload ditolak server: {body[:200]}")
-            else:
-                print(f"  [ERROR] Gagal kirim (HTTP {status}): {body[:200]}")
+                        acc_state["last_deal_time"] = new_iso
+                states[login_key] = acc_state
+                save_state(states)
+
+                if backfill_days is not None:
+                    print("  [BACKFILL] Selesai. Jalankan ulang bridge TANPA opsi ini "
+                          "untuk mode normal.")
+                    sys.exit(0)
 
         print(f"\nMenunggu {interval} detik...")
         time.sleep(interval)
