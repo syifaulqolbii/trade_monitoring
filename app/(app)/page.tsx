@@ -1,13 +1,13 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadAccountMetrics } from "@/lib/queries";
 import { fmtMoney, fmtPct, fmtLots, monthLabel } from "@/lib/format";
 import Icon from "./components/Icon";
-import MetricCard, { MetricValue, type Tone } from "./components/MetricCard";
 import EquityChart from "./components/EquityChart";
 import GrowthDrawdown from "./components/GrowthDrawdown";
 import DashboardActions, { type DashboardSnapshotData } from "./components/DashboardActions";
+import MetricCards from "./components/MetricCards";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ const RANGES: { key: RangeKey; label: string; badge: string }[] = [
   { key: "all", label: "Semua", badge: "ALL" },
 ];
 
-/** awal rentang (waktu lokal server): day→00:00 hari ini, week→7 hari, month→awal bulan */
+/** awal rentang (waktu lokal server): dayâ†’00:00 hari ini, weekâ†’7 hari, monthâ†’awal bulan */
 function rangeStartMs(key: RangeKey): number | undefined {
   const now = new Date();
   if (key === "all") return undefined;
@@ -39,10 +39,6 @@ function rangeStartMs(key: RangeKey): number | undefined {
 function parseRange(v: string | undefined): RangeKey {
   if (v === "day" || v === "week" || v === "month" || v === "all") return v;
   return "month";
-}
-
-function tone(v: number): Tone {
-  return v >= 0 ? "positive" : "negative";
 }
 
 const emptyStyle =
@@ -163,42 +159,15 @@ export default async function DashboardPage({
     },
   });
 
-  const pf =
-    m.profitFactor == null
-      ? "-"
-      : m.profitFactor === Infinity
-        ? "∞"
-        : m.profitFactor.toFixed(2);
-
-  const floating = m.equity - m.balance;
-  const winCount = Math.round(((m.winRatePct ?? 0) / 100) * m.totalTrades);
-  const lossCount = m.totalTrades - winCount;
-
-  const allRangeKey = range;
   const lotsLabel = {
     day: "Lots Hari Ini",
     week: "Lots Minggu Ini",
     month: "Lots Bulan Ini",
     all: "Total Lots",
-  }[allRangeKey];
+  }[range];
 
-  const pfBadge =
-    m.profitFactor == null
-      ? null
-      : m.profitFactor >= 2
-        ? { text: "Solid", tone: "positive" as Tone }
-        : m.profitFactor >= 1.2
-          ? { text: "Sehat", tone: "positive" as Tone }
-          : m.profitFactor < 1
-            ? { text: "Merugi", tone: "negative" as Tone }
-            : { text: "Tipis", tone: "negative" as Tone };
-
-  const healthBadge =
-    m.winRatePct == null
-      ? null
-      : m.winRatePct >= 50
-        ? { text: "Healthy", tone: "positive" as Tone }
-        : { text: "Risiko", tone: "negative" as Tone };
+  const winCount = Math.round(((m.winRatePct ?? 0) / 100) * m.totalTrades);
+  const lossCount = m.totalTrades - winCount;
 
   const open = windowData.openSummary;
   const chartPoints = windowData.metrics.equityCurve;
@@ -214,7 +183,7 @@ export default async function DashboardPage({
         })
       : "";
   const chartCaption =
-    chartFirst && chartLast ? `${fmtStamp(chartFirst)} — ${fmtStamp(chartLast)}` : "";
+    chartFirst && chartLast ? `${fmtStamp(chartFirst)} â€” ${fmtStamp(chartLast)}` : "";
 
   const newest = positions.slice(0, 3);
 
@@ -314,7 +283,7 @@ export default async function DashboardPage({
               <Icon name="info" className="shrink-0 text-[18px] text-on-surface-variant" />
               <span className="truncate font-body-sm text-body-sm text-on-surface-variant">
                 <strong className="font-semibold text-on-surface">Akun cent:</strong>{" "}
-                uang ÷100 (USC → USD) dan lot ÷100 → lot standar (1.0 lot cent =
+                uang Ã·100 (USC â†’ USD) dan lot Ã·100 â†’ lot standar (1.0 lot cent =
                 0.01 lot standar, kontrak 1 lot = 1.000 unit).
               </span>
             </div>
@@ -338,213 +307,47 @@ export default async function DashboardPage({
           </div>
         ) : (
           <>
-            {/* 8 metric cards */}
-            <div className="mb-6 grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4 lg:mb-8">
-              {/* Equity */}
-              <MetricCard
-                label="Equity"
-                topRight={
-                  <span className="rounded bg-surface-container px-1.5 py-0.5 font-label-caps text-label-caps text-on-surface-variant">
-                    USC → USD
-                  </span>
-                }
-                footerLeft={
-                  <span
-                    className={`flex items-center gap-1 font-medium ${
-                      floating >= 0 ? "text-secondary" : "text-on-tertiary-container"
-                    }`}
-                  >
-                    <Icon
-                      name={floating >= 0 ? "trending_up" : "trending_down"}
-                      className="text-[14px]"
-                    />
-                    {fmtMoney(floating, { cent })}
-                  </span>
-                }
-                footerRight={<span>Floating exposure</span>}
-              >
-                <MetricValue value={fmtMoney(m.equity, { cent })} />
-              </MetricCard>
-
-              {/* Balance */}
-              <MetricCard
-                label="Balance"
-                topRight={
-                  <Icon name="account_balance" className="text-[16px] text-outline" />
-                }
-                footerLeft={<span>Deposit awal:</span>}
-                footerRight={
-                  <span className="tnum font-label-tabular text-label-tabular font-medium text-on-surface">
-                    {fmtMoney(m.startBalance, { cent })}
-                  </span>
-                }
-              >
-                <MetricValue value={fmtMoney(m.balance, { cent })} />
-              </MetricCard>
-
-              {/* Growth */}
-              <MetricCard
-                label="Growth"
-                topRight={
-                  <span className="rounded bg-tertiary-fixed px-1.5 py-0.5 font-label-caps text-label-caps font-semibold text-on-tertiary-container">
-                    {RANGES.find((r) => r.key === range)?.badge}
-                  </span>
-                }
-                footerLeft={<span>Berdasar equity</span>}
-                footerRight={
-                  <Icon
-                    name={m.growthPct >= 0 ? "north_east" : "south_east"}
-                    className={`text-[14px] ${
-                      m.growthPct >= 0 ? "text-secondary" : "text-on-tertiary-container"
-                    }`}
-                  />
-                }
-              >
-                <MetricValue value={fmtPct(m.growthPct)} tone={tone(m.growthPct)} />
-              </MetricCard>
-
-              {/* Net Profit */}
-              <MetricCard
-                label="Net Profit"
-                topRight={
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      m.netProfit >= 0 ? "bg-secondary" : "bg-error"
-                    }`}
-                  />
-                }
-                footerLeft={<span>Posisi tertutup</span>}
-                footerRight={
-                  <span
-                    className={`tnum font-label-tabular text-label-tabular font-semibold ${
-                      m.netProfit >= 0 ? "text-secondary" : "text-on-tertiary-container"
-                    }`}
-                  >
-                    {m.totalTrades} posisi
-                  </span>
-                }
-              >
-                <MetricValue value={fmtMoney(m.netProfit, { cent })} tone={tone(m.netProfit)} />
-              </MetricCard>
-
-              {/* Cash Flow (Deposit / Withdraw) */}
-              <MetricCard
-                label="Cash Flow"
-                topRight={
-                  <Icon name="account_balance_wallet" className="text-[16px] text-outline" />
-                }
-                footerLeft={
-                  <span className="flex items-center gap-1 font-medium text-secondary">
-                    <Icon name="trending_up" className="text-[14px]" />
-                    {fmtMoney(m.deposits, { cent })}
-                  </span>
-                }
-                footerRight={
-                  <span className="flex items-center gap-1 font-medium text-error">
-                    <Icon name="trending_down" className="text-[14px]" />
-                    {fmtMoney(m.withdrawals, { cent })}
-                  </span>
-                }
-              >
-                <MetricValue value={fmtMoney(m.deposits, { cent })} tone={tone(m.deposits)} />
-              </MetricCard>
-
-              {/* Max Drawdown */}
-              <MetricCard
-                label="Max Drawdown"
-                topRight={<Icon name="speed" className="text-[16px] text-outline" />}
-                footerLeft={<span>Saat ini:</span>}
-                footerRight={
-                  <span className="tnum font-label-tabular text-label-tabular font-medium text-on-surface">
-                    {fmtPct(m.currentDrawdownPct)}
-                  </span>
-                }
-              >
-                <MetricValue value={fmtPct(m.maxDrawdownPct)} />
-              </MetricCard>
-
-              {/* Win Rate */}
-              <MetricCard
-                label="Win Rate"
-                topRight={
-                  <span
-                    className={`tnum font-label-tabular text-label-tabular font-medium ${
-                      m.winRatePct != null && m.winRatePct >= 50
-                        ? "text-secondary"
-                        : "text-on-tertiary-container"
-                    }`}
-                  >
-                    {m.winRatePct != null
-                      ? `${winCount} / ${m.totalTrades}`
-                      : "—"}
-                  </span>
-                }
-                footerLeft={<span>{m.totalTrades} trade tertutup</span>}
-                footerRight={
-                  healthBadge ? (
-                    <span
-                      className={`font-label-caps text-label-caps font-semibold ${
-                        healthBadge.tone === "positive"
-                          ? "text-secondary"
-                          : "text-on-tertiary-container"
-                      }`}
-                    >
-                      {healthBadge.text}
-                    </span>
-                  ) : null
-                }
-              >
-                <div className="flex items-center justify-between">
-                  <MetricValue value={m.winRatePct != null ? `${m.winRatePct.toFixed(1)}%` : "-"} />
-                  <div className="h-2 w-14 overflow-hidden rounded-full bg-surface-container">
-                    <div
-                      className="h-full rounded-full bg-secondary"
-                      style={{
-                        width: `${Math.min(100, Math.max(0, m.winRatePct ?? 0))}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </MetricCard>
-
-              {/* Profit Factor */}
-              <MetricCard
-                label="Profit Factor"
-                topRight={<Icon name="query_stats" className="text-[16px] text-outline" />}
-                footerLeft={<span>Gross profit / gross loss</span>}
-                footerRight={
-                  pfBadge ? (
-                    <span
-                      className={`font-label-caps text-label-caps font-semibold ${
-                        pfBadge.tone === "positive"
-                          ? "text-secondary"
-                          : "text-on-tertiary-container"
-                      }`}
-                    >
-                      {pfBadge.text}
-                    </span>
-                  ) : null
-                }
-              >
-                <MetricValue value={pf} />
-              </MetricCard>
-
-              {/* Lots */}
-              <MetricCard
-                label={lotsLabel}
-                topRight={<Icon name="pie_chart" className="text-[16px] text-outline" />}
-                footerLeft={<span>Total (semua waktu):</span>}
-                footerRight={
-                  <span className="tnum font-label-tabular text-label-tabular font-medium text-on-surface">
-                    {fmtLots(mAll.totalLots, { cent })}
-                    {cent ? " lot standar" : " lot"}
-                  </span>
-                }
-              >
-                <MetricValue value={fmtLots(m.totalLots, { cent })} />
-              </MetricCard>
-            </div>
-
+            {/* Metric cards — klik untuk detail + grafik */}
+            <MetricCards
+              data={{
+                metrics: {
+                  equity: m.equity,
+                  balance: m.balance,
+                  growthPct: m.growthPct,
+                  netProfit: m.netProfit,
+                  deposits: m.deposits,
+                  withdrawals: m.withdrawals,
+                  maxDrawdownPct: m.maxDrawdownPct,
+                  currentDrawdownPct: m.currentDrawdownPct,
+                  winRatePct: m.winRatePct,
+                  totalTrades: m.totalTrades,
+                  profitFactor: m.profitFactor,
+                  totalLots: m.totalLots,
+                  lotsLabel,
+                  startBalance: m.startBalance,
+                },
+                monthly: m.monthly.map((r) => ({
+                  month: r.month,
+                  lots: r.lots,
+                  trades: r.trades,
+                  winRate: r.winRate,
+                  profit: r.profit,
+                })),
+                monthlyAll: mAll.monthly.map((r) => ({
+                  month: r.month,
+                  lots: r.lots,
+                  trades: r.trades,
+                  winRate: r.winRate,
+                  profit: r.profit,
+                })),
+                equityCurve: windowData.metrics.equityCurve,
+                growthDD: windowData.growthDD,
+                symbolStats: windowData.symbolStats,
+                cent,
+                currency: accMeta?.currency,
+                rangeLabel: RANGES.find((r) => r.key === range)?.label ?? "Bulan Ini",
+              }}
+            />
             {/* Chart + Posisi Terbuka */}
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
@@ -661,8 +464,8 @@ export default async function DashboardPage({
                               </div>
                               <span className="truncate text-[11px] font-body-sm text-on-surface-variant">
                                 Open: {p.priceOpen.toFixed(5)}
-                                {p.sl != null ? ` • SL: ${p.sl.toFixed(5)}` : ""}
-                                {p.tp != null ? ` • TP: ${p.tp.toFixed(5)}` : ""}
+                                {p.sl != null ? ` â€¢ SL: ${p.sl.toFixed(5)}` : ""}
+                                {p.tp != null ? ` â€¢ TP: ${p.tp.toFixed(5)}` : ""}
                               </span>
                             </div>
                             <div className="ml-2 shrink-0 text-right">
