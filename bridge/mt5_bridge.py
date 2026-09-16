@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+[DEPRECATED — 2026-09-16] JANGAN DIJALANKAN LAGI.
+Sinkronisasi web kini dikerjakan DI DALAM mt5_signal_copier_v6.py
+(CONFIG["monitor"]) agar hanya ada SATU klien MT5 di terminal. Menjalankan
+bridge ini bersamaan dengan copier mengulang bug dua klien MT5: koneksi bridge
+bisa macet diam-diam (2026-09-15: beku 1j32m -> dashboard berhenti update).
+File ini disimpan sebagai referensi logika window deal saja.
+
 Freebuff Monitor — Bridge MT5
 ==============================
 Script ini dijalankan di VPS Windows yang sama dengan terminal MT5

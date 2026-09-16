@@ -1,5 +1,12 @@
 # Bridge MT5 — Panduan Setup
 
+> **DEPRECATED (2026-09-16) — JANGAN DIPAKAI LAGI.**
+> Sinkronisasi web sekarang dikerjakan di dalam `mt5_signal_copier_v6.py`
+> (`CONFIG["monitor"]`), supaya hanya ada **satu** klien MT5 di terminal.
+> Menjalankan bridge ini bersamaan dengan copier mengembalikan bug dua klien
+> MT5: koneksi bridge bisa macet diam-diam (2026-09-15 beku 1j32m) dan
+> dashboard berhenti update. Isi di bawah disimpan sebagai referensi.
+
 Script ini berjalan di **VPS Windows yang sama dengan terminal MT5 kamu**
 (termasuk terminal yang dipakai copier). Ia membaca data akun dari terminal
 dan mengirimkannya ke web app secara berkala.
