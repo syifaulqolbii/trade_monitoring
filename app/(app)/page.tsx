@@ -23,7 +23,7 @@ const RANGES: { key: RangeKey; label: string; badge: string }[] = [
   { key: "all", label: "Semua", badge: "ALL" },
 ];
 
-/** awal rentang (waktu lokal server): dayâ†’00:00 hari ini, weekâ†’7 hari, monthâ†’awal bulan */
+/** awal rentang (waktu lokal server): day→00:00 hari ini, week→7 hari, month→awal bulan */
 function rangeStartMs(key: RangeKey): number | undefined {
   const now = new Date();
   if (key === "all") return undefined;
@@ -183,7 +183,7 @@ export default async function DashboardPage({
         })
       : "";
   const chartCaption =
-    chartFirst && chartLast ? `${fmtStamp(chartFirst)} â€” ${fmtStamp(chartLast)}` : "";
+    chartFirst && chartLast ? `${fmtStamp(chartFirst)} — ${fmtStamp(chartLast)}` : "";
 
   const newest = positions.slice(0, 3);
 
@@ -283,7 +283,7 @@ export default async function DashboardPage({
               <Icon name="info" className="shrink-0 text-[18px] text-on-surface-variant" />
               <span className="truncate font-body-sm text-body-sm text-on-surface-variant">
                 <strong className="font-semibold text-on-surface">Akun cent:</strong>{" "}
-                uang Ã·100 (USC â†’ USD) dan lot Ã·100 â†’ lot standar (1.0 lot cent =
+                uang ÷100 (USC → USD) dan lot ÷100 → lot standar (1.0 lot cent =
                 0.01 lot standar, kontrak 1 lot = 1.000 unit).
               </span>
             </div>
@@ -464,8 +464,8 @@ export default async function DashboardPage({
                               </div>
                               <span className="truncate text-[11px] font-body-sm text-on-surface-variant">
                                 Open: {p.priceOpen.toFixed(5)}
-                                {p.sl != null ? ` â€¢ SL: ${p.sl.toFixed(5)}` : ""}
-                                {p.tp != null ? ` â€¢ TP: ${p.tp.toFixed(5)}` : ""}
+                                {p.sl != null ? ` • SL: ${p.sl.toFixed(5)}` : ""}
+                                {p.tp != null ? ` • TP: ${p.tp.toFixed(5)}` : ""}
                               </span>
                             </div>
                             <div className="ml-2 shrink-0 text-right">
