@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { listAccountsForPicker, resolveAccount } from "@/lib/queries";
 import { fmtMoney, fmtLots, fmtDateTime } from "@/lib/format";
@@ -71,6 +72,9 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
   ]);
 
   const cent = accountFull.cent;
+  // Nilai utama sudah mengikuti saklar USD/USC lewat fmtMoney; hint USC di
+  // bawah angka hanya relevan saat mode USD (kalau mode USC, angkanya sama).
+  const uscMode = cent && (await cookies()).get("currency")?.value === "usc";
   const floatingRaw = positions.reduce((s, p) => s + p.profit, 0);
   const totalSwap = positions.reduce((s, p) => s + (p.swap ?? 0), 0);
   const totalVolume = positions.reduce((s, p) => s + p.volume, 0);
@@ -218,7 +222,7 @@ export default async function PositionsPage({ searchParams }: PageProps<"/positi
               <span className={`tnum font-metric-display text-metric-display tracking-tight ${toneCls(floatingRaw)}`}>
                 {signed(floatingRaw)}
               </span>
-              {cent && (
+              {cent && !uscMode && (
                 <span className="tnum font-label-tabular text-body-sm text-on-surface-variant">
                   (~ {Math.abs(Math.round(floatingRaw)).toLocaleString("en-US")} USC)
                 </span>

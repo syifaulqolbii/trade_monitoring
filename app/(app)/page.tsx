@@ -258,8 +258,9 @@ export default async function DashboardPage({
               <Icon name="info" className="shrink-0 text-[18px] text-on-surface-variant" />
               <span className="truncate font-body-sm text-body-sm text-on-surface-variant">
                 <strong className="font-semibold text-on-surface">Akun cent:</strong>{" "}
-                uang ÷100 (USC → USD) dan lot ÷100 → lot standar (1.0 lot cent =
-                0.01 lot standar, kontrak 1 lot = 1.000 unit).
+                nilai uang mengikuti saklar USD/USC di kanan atas (USD = USC ÷
+                100), dan lot ÷100 → lot standar (1.0 lot cent = 0.01 lot
+                standar, kontrak 1 lot = 1.000 unit).
               </span>
             </div>
             <span className="hidden whitespace-nowrap pl-4 font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant sm:inline-flex">

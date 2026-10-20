@@ -17,7 +17,22 @@ export function getPrivacyMode(): boolean {
 
 export const PRIVACY_MASK = "$----";
 
-/** Format angka uang; cent=true → tampilkan dalam USD (USC/100). */
+/**
+ * Mode mata uang global: "usd" (default) menampilkan akun cent dalam USD
+ * (nilai tersimpan USC ÷ 100), "usc" menampilkan apa adanya dengan sufiks
+ * "USC". Diubah via setCurrencyMode() dari CurrencyProvider (cookie
+ * `currency`), dibaca ulang di layout agar SSR konsisten.
+ */
+export type CurrencyMode = "usd" | "usc";
+
+let currencyMode: CurrencyMode = "usd";
+
+export function setCurrencyMode(mode: CurrencyMode): void {
+  currencyMode = mode;
+}
+
+/** Format angka uang; cent=true → USD (USC/100), atau USC mentah bila
+ *  mode mata uang = "usc" (sufiks USC eksplisit supaya skala tidak tertukar). */
 export function fmtMoney(
   v: number | null | undefined,
   opts: { cent?: boolean; digits?: number; symbol?: string } = {}
@@ -25,15 +40,17 @@ export function fmtMoney(
   if (v === null || v === undefined || Number.isNaN(v)) return "-";
   if (privacyMode) return PRIVACY_MASK;
   const cent = opts.cent ?? false;
-  const digits = opts.digits ?? (cent ? 2 : 2);
-  const usd = toUsd(v, cent);
-  const symbol = opts.symbol ?? (cent ? "$" : "$");
-  const sign = usd < 0 ? "-" : "";
-  const abs = Math.abs(usd);
+  const raw = cent && currencyMode === "usc";
+  const digits = opts.digits ?? 2;
+  const value = raw ? v : toUsd(v, cent);
+  const symbol = opts.symbol ?? (raw ? "" : "$");
+  const suffix = raw ? " USC" : "";
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
   return `${sign}${symbol}${abs.toLocaleString("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
-  })}`;
+  })}${suffix}`;
 }
 
 /** Format persen, mis. +12.34% */

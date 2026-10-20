@@ -14,6 +14,7 @@ import type { EquityPoint } from "@/lib/metrics";
 import { toUsd } from "@/lib/metrics";
 import { downsampleSeries } from "@/lib/series";
 import { usePrivacy } from "./PrivacyProvider";
+import { useCurrency } from "./CurrencyProvider";
 import { PRIVACY_MASK } from "@/lib/format";
 
 const fmtAxis = (v: number) =>
@@ -29,13 +30,16 @@ export default function EquityChart({
   currency?: string | null;
 }) {
   const { privacy } = usePrivacy();
+  const { mode: currencyMode } = useCurrency();
+  const usc = cent && currencyMode === "usc";
 
   const data = downsampleSeries(points, 240).map((p) => {
-    const mul = cent ? 100 : 1;
+    const equity = usc ? p.equity : toUsd(p.equity, cent);
+    const balance = usc ? p.balance : toUsd(p.balance, cent);
     return {
       t: p.t,
-      Equity: Math.round(toUsd(p.equity, cent) * mul) / mul,
-      Balance: Math.round(toUsd(p.balance, cent) * mul) / mul,
+      Equity: Math.round(equity * 100) / 100,
+      Balance: Math.round(balance * 100) / 100,
     };
   });
 
@@ -102,7 +106,11 @@ export default function EquityChart({
               })
             }
             formatter={(value, name) => [
-              privacy ? PRIVACY_MASK : `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+              privacy
+                ? PRIVACY_MASK
+                : usc
+                  ? `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })} USC`
+                  : `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
               name,
             ]}
           />
@@ -128,8 +136,12 @@ export default function EquityChart({
       </ResponsiveContainer>
       {cent && (
         <p className="mt-1 text-right text-[11px] text-on-surface-variant">
-          Nilai dikonversi USC → USD (÷100)
-          {currency && currency !== "USD" ? ` · Mata uang akun: ${currency}` : ""}
+          {usc
+            ? "Nilai dalam USC (mata uang akun)"
+            : "Nilai dikonversi USC → USD (÷100)"}
+          {!usc && currency && currency !== "USD"
+            ? ` · Mata uang akun: ${currency}`
+            : ""}
         </p>
       )}
     </div>

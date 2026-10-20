@@ -11,7 +11,9 @@ tanpa bayar langganan, data 100% milik kamu.
 - **Statistik bulanan** — lots, jumlah trade, win rate, profit, balance akhir per bulan
 - **Riwayat Trade** — semua posisi tertutup dengan filter simbol/bulan/tipe + pagination
 - **Posisi Terbuka** — posisi live dengan floating P&L, SL/TP, swap
-- **Konversi USC → USD** — akun cent otomatis dibagi 100 di seluruh tampilan
+- **Konversi USC ↔ USD** — akun cent otomatis dibagi 100 di seluruh tampilan;
+  saklar **USD/USC** di topbar (disimpan di cookie) untuk melihat angka mentah
+  mata uang akun bila perlu audit
 - **Input Akun** — broker, login, password investor (terenkripsi AES-256-GCM), server,
   flag cent, token bridge unik per akun
 - **Login single-user** — session cookie bertanda tangan HMAC

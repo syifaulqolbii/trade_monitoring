@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import Icon from "./Icon";
 import { usePrivacy } from "./PrivacyProvider";
+import { useCurrency } from "./CurrencyProvider";
 
 export interface TopbarAccount {
   id: string;
@@ -42,6 +43,7 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { privacy, toggle: togglePrivacy } = usePrivacy();
+  const { mode: currencyMode, toggle: toggleCurrency } = useCurrency();
 
   const activeId = useMemo(
     () => searchParams.get("acc") ?? accounts[0]?.id ?? "",
@@ -148,6 +150,23 @@ export default function Topbar({ accounts }: { accounts: TopbarAccount[] }) {
           </div>
         )}
         <div className="hidden h-5 w-px bg-outline-variant/30 sm:block" />
+        <button
+          type="button"
+          onClick={toggleCurrency}
+          title={
+            currencyMode === "usd"
+              ? "Nilai uang ditampilkan dalam USD (USC ÷ 100). Klik untuk USC."
+              : "Nilai uang ditampilkan dalam USC (mata uang akun). Klik untuk USD."
+          }
+          aria-label={
+            currencyMode === "usd"
+              ? "Tampilkan nilai dalam USC"
+              : "Tampilkan nilai dalam USD"
+          }
+          className="flex h-9 min-w-11 items-center justify-center rounded-xl px-2 font-label-caps text-label-caps font-semibold tracking-wider text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+        >
+          {currencyMode === "usd" ? "USD" : "USC"}
+        </button>
         <button
           type="button"
           onClick={togglePrivacy}

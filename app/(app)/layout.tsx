@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { setPrivacyMode } from "@/lib/format";
+import { setCurrencyMode, setPrivacyMode, type CurrencyMode } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
 import PrivacyProvider from "./components/PrivacyProvider";
+import CurrencyProvider from "./components/CurrencyProvider";
 import AutoRefresh from "./components/AutoRefresh";
 
 /** Umur sinkronisasi terakhir < 10 menit = bridge live.
@@ -21,11 +22,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Mode privasi disimpan di cookie; sinkronkan formatter sisi server
-  // sebelum children dirender agar SSR konsisten dengan pilihan user.
+  // Mode privasi & mata uang disimpan di cookie; sinkronkan formatter sisi
+  // server sebelum children dirender agar SSR konsisten dengan pilihan user.
   const cookieStore = await cookies();
   const privacyOn = cookieStore.get("privacy")?.value === "1";
   setPrivacyMode(privacyOn);
+  const currencyMode: CurrencyMode =
+    cookieStore.get("currency")?.value === "usc" ? "usc" : "usd";
+  setCurrencyMode(currencyMode);
 
   const accounts = await prisma.account.findMany({
     orderBy: { createdAt: "asc" },
@@ -51,33 +55,35 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <PrivacyProvider initial={privacyOn}>
-      <AutoRefresh seconds={30} />
-      <div className="min-h-screen bg-surface">
-        {/* Sidebar desktop — tersembunyi di mobile, diganti bottom nav */}
-        <div className="hidden lg:block">
-          <Sidebar
-            username={session.username}
-            lastSyncAt={lastSyncAt}
-            fresh={bridgeFresh}
-          />
+      <CurrencyProvider initial={currencyMode}>
+        <AutoRefresh seconds={30} />
+        <div className="min-h-screen bg-surface">
+          {/* Sidebar desktop — tersembunyi di mobile, diganti bottom nav */}
+          <div className="hidden lg:block">
+            <Sidebar
+              username={session.username}
+              lastSyncAt={lastSyncAt}
+              fresh={bridgeFresh}
+            />
+          </div>
+          <div className="lg:pl-64">
+            <Topbar
+              accounts={accounts.map((a) => ({
+                id: a.id,
+                name: a.name,
+                login: a.login,
+                server: a.server,
+                lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
+              }))}
+            />
+            {/* ruang untuk header mobile (h-14) & bottom nav (h-16) di layar kecil */}
+            <main className="min-h-screen bg-surface pb-24 pt-14 lg:pb-10 lg:pt-16">
+              {children}
+            </main>
+          </div>
+          <BottomNav />
         </div>
-        <div className="lg:pl-64">
-          <Topbar
-            accounts={accounts.map((a) => ({
-              id: a.id,
-              name: a.name,
-              login: a.login,
-              server: a.server,
-              lastSyncAt: a.lastSyncAt?.toISOString() ?? null,
-            }))}
-          />
-          {/* ruang untuk header mobile (h-14) & bottom nav (h-16) di layar kecil */}
-          <main className="min-h-screen bg-surface pb-24 pt-14 lg:pb-10 lg:pt-16">
-            {children}
-          </main>
-        </div>
-        <BottomNav />
-      </div>
+      </CurrencyProvider>
     </PrivacyProvider>
   );
 }

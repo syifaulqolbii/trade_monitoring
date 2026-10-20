@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildHistory, filterRows, type DealRow } from "@/lib/history";
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
 
   const accounts = await prisma.account.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, cent: true },
+    select: { id: true, name: true, cent: true, currency: true },
   });
   if (accounts.length === 0) return new Response("Tidak ada akun", { status: 404 });
   const account = accounts.find((a) => a.id === acc) ?? accounts[0];
@@ -46,6 +47,11 @@ export async function GET(request: Request) {
   })) as unknown as DealRow[];
 
   const cent = account.cent;
+  // Satuan kolom uang mengikuti saklar USD/USC di topbar (cookie `currency`),
+  // supaya CSV tidak menampilkan angka mentah tanpa keterangan satuan.
+  const uscMode = cent && (await cookies()).get("currency")?.value === "usc";
+  const money = (v: number) => (cent && !uscMode ? v / 100 : v);
+  const unit = uscMode ? "USC" : cent ? "USD" : account.currency ?? "";
   const rows = filterRows(buildHistory(deals), {
     symbol: url.searchParams.get("symbol") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
@@ -70,9 +76,9 @@ export async function GET(request: Request) {
     "Harga Tutup",
     "Waktu Buka",
     "Waktu Tutup",
-    "Profit",
-    "Komisi",
-    "Swap",
+    `Profit (${unit})`,
+    `Komisi (${unit})`,
+    `Swap (${unit})`,
   ];
   const lines = [header.join(";")];
   for (const r of rows) {
@@ -87,9 +93,9 @@ export async function GET(request: Request) {
         num(r.closePrice, 5),
         fmtD(r.openTime),
         fmtD(r.closeTime),
-        num(r.netProfit),
-        num(r.commission),
-        num(r.swap),
+        num(money(r.netProfit)),
+        num(money(r.commission)),
+        num(money(r.swap)),
       ]
         .map(csvCell)
         .join(";")
