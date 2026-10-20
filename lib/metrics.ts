@@ -181,6 +181,96 @@ export function monthKey(d: Date | string): string {
   return monthKeyOf(asDate(d));
 }
 
+type NormalizedSnapshot = { balance: number; equity: number; t: number };
+
+function normalizeSnapshots(snapshots: SnapshotInput[]): NormalizedSnapshot[] {
+  return [...snapshots]
+    .map((s) => ({
+      balance: s.balance,
+      equity: s.equity,
+      t: asDate(s.createdAt).getTime(),
+    }))
+    .sort((a, b) => a.t - b.t);
+}
+
+/** Statistik bulanan saja — dipakai dashboard untuk tabel "seluruh riwayat"
+ *  tanpa perlu memuat seluruh snapshot (cukup snapshot terakhir tiap bulan). */
+export function monthlyStats(
+  deals: DealInput[],
+  snapshots: SnapshotInput[]
+): MonthlyStat[] {
+  const closed = buildClosedPositions(deals);
+  const snaps = normalizeSnapshots(snapshots);
+  return buildMonthlyStats(deals, closed, snaps, snaps[0]?.balance ?? 0);
+}
+
+function buildMonthlyStats(
+  deals: DealInput[],
+  closed: ClosedPosition[],
+  snaps: NormalizedSnapshot[],
+  startBalance: number
+): MonthlyStat[] {
+  // kumpulkan semua bulan yang muncul (dari deal & posisi tertutup)
+  const monthSet = new Set<string>();
+  for (const d of deals) monthSet.add(monthKeyOf(asDate(d.time)));
+  for (const c of closed) monthSet.add(monthKeyOf(c.closeTime));
+
+  const monthlyMap = new Map<string, MonthlyStat>();
+  for (const key of monthSet) {
+    monthlyMap.set(key, {
+      month: key,
+      lots: 0,
+      trades: 0,
+      winRate: 0,
+      profit: 0,
+      balance: null,
+    });
+  }
+
+  for (const c of closed) {
+    const m = monthlyMap.get(monthKeyOf(c.closeTime))!;
+    m.trades += 1;
+    m.profit += c.netProfit;
+    if (c.netProfit > 0) m.winRate = (m.winRate ?? 0) + 1; // sementara: hitung wins dulu
+  }
+  // lots per bulan: total volume deal buy/sell / 2 (tiap round-trip dihitung sekali)
+  for (const d of deals) {
+    if (d.type !== 0 && d.type !== 1) continue;
+    const m = monthlyMap.get(monthKeyOf(asDate(d.time)));
+    if (m) m.lots += d.volume / 2;
+  }
+  // balance akhir bulan + win rate final
+  const monthly = [...monthlyMap.values()].sort((a, b) =>
+    a.month.localeCompare(b.month)
+  );
+  let cumulative = startBalance;
+  for (const m of monthly) {
+    if (m.trades > 0) m.winRate = ((m.winRate ?? 0) / m.trades) * 100;
+    else m.winRate = null;
+    cumulative += m.profit;
+    // cari snapshot terakhir dalam bulan tsb
+    const endOfMonth = new Date(
+      Number(m.month.slice(0, 4)),
+      Number(m.month.slice(5, 7)),
+      1,
+      0,
+      0,
+      0,
+      0
+    ).getTime();
+    const startOfMonth = new Date(
+      Number(m.month.slice(0, 4)),
+      Number(m.month.slice(5, 7)) - 1,
+      1
+    ).getTime();
+    const snapInMonth = snaps
+      .filter((s) => s.t >= startOfMonth && s.t < endOfMonth)
+      .sort((a, b) => b.t - a.t)[0];
+    m.balance = snapInMonth ? snapInMonth.balance : cumulative;
+  }
+  return monthly;
+}
+
 /** Hitung semua metrik utama dari data akun.
  *  Konversi USC→USD tidak dilakukan di sini — tampilan memakai fmtMoney({cent}). */
 export function computeMetrics(
@@ -191,13 +281,7 @@ export function computeMetrics(
   const closed = buildClosedPositions(deals);
 
   // ---- snapshot terurut ----
-  const snaps = [...snapshots]
-    .map((s) => ({
-      balance: s.balance,
-      equity: s.equity,
-      t: asDate(s.createdAt).getTime(),
-    }))
-    .sort((a, b) => a.t - b.t);
+  const snaps = normalizeSnapshots(snapshots);
 
   const startBalance = snaps.length > 0 ? snaps[0].balance : 0;
   const startEquity = snaps.length > 0 ? snaps[0].equity : startBalance;
@@ -267,64 +351,7 @@ export function computeMetrics(
       .reduce((s, d) => s + d.volume, 0) / 2;
 
   // ---- statistik bulanan ----
-  // kumpulkan semua bulan yang muncul (dari deal & posisi tertutup)
-  const monthSet = new Set<string>();
-  for (const d of deals) monthSet.add(monthKeyOf(asDate(d.time)));
-  for (const c of closed) monthSet.add(monthKeyOf(c.closeTime));
-
-  const monthlyMap = new Map<string, MonthlyStat>();
-  for (const key of monthSet) {
-    monthlyMap.set(key, {
-      month: key,
-      lots: 0,
-      trades: 0,
-      winRate: 0,
-      profit: 0,
-      balance: null,
-    });
-  }
-
-  for (const c of closed) {
-    const m = monthlyMap.get(monthKeyOf(c.closeTime))!;
-    m.trades += 1;
-    m.profit += c.netProfit;
-    if (c.netProfit > 0) m.winRate = (m.winRate ?? 0) + 1; // sementara: hitung wins dulu
-  }
-  // lots per bulan: total volume deal buy/sell / 2 (tiap round-trip dihitung sekali)
-  for (const d of deals) {
-    if (d.type !== 0 && d.type !== 1) continue;
-    const m = monthlyMap.get(monthKeyOf(asDate(d.time)));
-    if (m) m.lots += d.volume / 2;
-  }
-  // balance akhir bulan + win rate final
-  const monthly = [...monthlyMap.values()].sort((a, b) =>
-    a.month.localeCompare(b.month)
-  );
-  let cumulative = startBalance;
-  for (const m of monthly) {
-    if (m.trades > 0) m.winRate = ((m.winRate ?? 0) / m.trades) * 100;
-    else m.winRate = null;
-    cumulative += m.profit;
-    // cari snapshot terakhir dalam bulan tsb
-    const endOfMonth = new Date(
-      Number(m.month.slice(0, 4)),
-      Number(m.month.slice(5, 7)),
-      1,
-      0,
-      0,
-      0,
-      0
-    ).getTime();
-    const startOfMonth = new Date(
-      Number(m.month.slice(0, 4)),
-      Number(m.month.slice(5, 7)) - 1,
-      1
-    ).getTime();
-    const snapInMonth = snaps
-      .filter((s) => s.t >= startOfMonth && s.t < endOfMonth)
-      .sort((a, b) => b.t - a.t)[0];
-    m.balance = snapInMonth ? snapInMonth.balance : cumulative;
-  }
+  const monthly = buildMonthlyStats(deals, closed, snaps, startBalance);
 
   // ---- equity curve ----
   const equityCurve: EquityPoint[] = snaps.map((s) => ({
@@ -475,13 +502,7 @@ export function growthDrawdownSeries(
   snapshots: SnapshotInput[],
   deals: DealInput[] = []
 ): GrowthDDPoint[] {
-  const snaps = [...snapshots]
-    .map((s) => ({
-      balance: s.balance,
-      equity: s.equity,
-      t: asDate(s.createdAt).getTime(),
-    }))
-    .sort((a, b) => a.t - b.t);
+  const snaps = normalizeSnapshots(snapshots);
   if (snaps.length === 0) return [];
   const { cumFlow, denom } = balanceAnchoredFlows(snaps, deals);
   const first = snaps[0].equity;

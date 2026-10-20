@@ -107,6 +107,18 @@ npm run start               # di belakang PM2 / systemd
 Lalu pasang reverse proxy (Caddy/Nginx) untuk HTTPS — disarankan, karena
 password investor terenkripsi tapi trafik tetap lebih aman via TLS.
 
+## Performa & cache
+
+- **Snapshot**: perubahan balance (trade close/deposit/withdrawal) langsung
+  disimpan; perubahan floating equity di-throttle maksimal tiap 5 menit.
+  Ini mencegah tabel `Snapshot` membengkak 2.880 baris/hari per akun.
+- **Baca dashboard**: snapshot di-bucket di SQL (target ±4.000 titik per
+  rentang) dan kurva dipotong ke 240 titik (equity) / 160 titik (growth)
+  sebelum dikirim ke browser — payload tetap ±120 KB walau riwayat jutaan baris.
+- **Cache**: data dashboard di-cache 15 detik di server; navigasi tab
+  Hari Ini/Minggu/Bulan/Semua memakai cache client 20–30 detik + prefetch.
+- Tidak perlu migrasi/PRUNE database saat upgrade: sampel dibaca dari data lama.
+
 ## Perintah lain
 
 | Perintah           | Fungsi                                  |

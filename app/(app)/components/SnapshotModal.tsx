@@ -395,7 +395,8 @@ function renderSummary(ctx: CanvasRenderingContext2D, d: SnapshotData) {
 function renderMonthly(ctx: CanvasRenderingContext2D, d: SnapshotData) {
   drawHeader(ctx, d, "Statistik Bulanan");
 
-  const rows = d.monthly.slice(0, 10);
+  // monthly terurut naik — ambil bulan TERBARU supaya bulan aktif selalu tampil
+  const rows = d.monthly.slice(-10);
   const cols = ["Bulan", "Lots", "Trade", "Win Rate", "Profit", "Balance Akhir"];
   const xRight = W - 60;
   const colX = [60, xRight - 480, xRight - 350, xRight - 260, xRight - 160, xRight];

@@ -12,21 +12,9 @@ import {
 } from "recharts";
 import type { EquityPoint } from "@/lib/metrics";
 import { toUsd } from "@/lib/metrics";
+import { downsampleSeries } from "@/lib/series";
 import { usePrivacy } from "./PrivacyProvider";
 import { PRIVACY_MASK } from "@/lib/format";
-
-function downsample(points: EquityPoint[], max = 240): EquityPoint[] {
-  if (points.length <= max) return points;
-  const step = points.length / max;
-  const out: EquityPoint[] = [];
-  for (let i = 0; i < points.length; i += step) {
-    out.push(points[Math.floor(i)]);
-  }
-  if (out[out.length - 1] !== points[points.length - 1]) {
-    out.push(points[points.length - 1]);
-  }
-  return out;
-}
 
 const fmtAxis = (v: number) =>
   v.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -42,7 +30,7 @@ export default function EquityChart({
 }) {
   const { privacy } = usePrivacy();
 
-  const data = downsample(points).map((p) => {
+  const data = downsampleSeries(points, 240).map((p) => {
     const mul = cent ? 100 : 1;
     return {
       t: p.t,

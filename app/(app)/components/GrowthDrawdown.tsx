@@ -8,17 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { GrowthDDPoint } from "@/lib/metrics";
-
-function downsample<T>(points: T[], max = 160): T[] {
-  if (points.length <= max) return points;
-  const step = points.length / max;
-  const out: T[] = [];
-  for (let i = 0; i < points.length; i += step) {
-    out.push(points[Math.floor(i)]);
-  }
-  out.push(points[points.length - 1]);
-  return out;
-}
+import { downsampleSeries } from "@/lib/series";
 
 function MiniArea({
   data,
@@ -110,7 +100,7 @@ function MiniArea({
 
 export default function GrowthDrawdown({ points }: { points: GrowthDDPoint[] }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const data = downsample(points);
+  const data = downsampleSeries(points, 160);
   const cur = data[data.length - 1];
   if (data.length < 2 || !cur) {
     return (

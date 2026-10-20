@@ -1,5 +1,8 @@
 import { prisma } from "./prisma";
 
+/** Interval minimum snapshot floating (equity) — balance berubah tetap langsung. */
+const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000;
+
 export interface SyncAccountInfo {
   login: string;
   broker?: string;
@@ -93,16 +96,34 @@ export async function processSync(
     },
   });
 
-  await prisma.snapshot.create({
-    data: {
-      accountId,
-      balance: account.balance,
-      equity: account.equity,
-      margin: account.margin ?? null,
-      freeMargin: account.freeMargin ?? null,
-      createdAt: now,
-    },
+  // Snapshot berkala tidak perlu setiap sync 30 detik. Balance berubah =
+  // trade closed/deposit/withdrawal → simpan langsung. Perubahan floating
+  // (equity) saja di-throttle 5 menit agar tabel Snapshot tidak membengkak
+  // ratusan ribu baris dan dashboard tetap ringan.
+  const lastSnapshot = await prisma.snapshot.findFirst({
+    where: { accountId },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true, balance: true },
   });
+  const balanceChanged =
+    !lastSnapshot || Math.abs(lastSnapshot.balance - account.balance) > 0.005;
+  const snapshotCreated =
+    !lastSnapshot ||
+    balanceChanged ||
+    now.getTime() - lastSnapshot.createdAt.getTime() >= SNAPSHOT_INTERVAL_MS;
+
+  if (snapshotCreated) {
+    await prisma.snapshot.create({
+      data: {
+        accountId,
+        balance: account.balance,
+        equity: account.equity,
+        margin: account.margin ?? null,
+        freeMargin: account.freeMargin ?? null,
+        createdAt: now,
+      },
+    });
+  }
 
   // ---- replace posisi terbuka ----
   await prisma.position.deleteMany({ where: { accountId } });
@@ -166,7 +187,7 @@ export async function processSync(
     accountId,
     dealsAdded,
     positionsReplaced: positions.length,
-    snapshotCreated: true,
+    snapshotCreated,
     lastSyncAt: now.toISOString(),
   };
 }

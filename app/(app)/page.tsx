@@ -1,7 +1,8 @@
 ﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { loadAccountMetrics } from "@/lib/queries";
+import { loadDashboardData } from "@/lib/queries";
+import { parseRange, RANGES, type RangeKey } from "@/lib/range";
 import { fmtMoney, fmtPct, fmtLots, monthLabel } from "@/lib/format";
 import Icon from "./components/Icon";
 import EquityChart from "./components/EquityChart";
@@ -14,33 +15,6 @@ export const dynamic = "force-dynamic";
 const first = (v: string | string[] | undefined): string | undefined =>
   (Array.isArray(v) ? v[0] : v) ?? undefined;
 
-type RangeKey = "day" | "week" | "month" | "all";
-
-const RANGES: { key: RangeKey; label: string; badge: string }[] = [
-  { key: "day", label: "Hari Ini", badge: "1D" },
-  { key: "week", label: "Minggu Ini", badge: "7D" },
-  { key: "month", label: "Bulan Ini", badge: "MTD" },
-  { key: "all", label: "Semua", badge: "ALL" },
-];
-
-/** awal rentang (waktu lokal server): day→00:00 hari ini, week→7 hari, month→awal bulan */
-function rangeStartMs(key: RangeKey): number | undefined {
-  const now = new Date();
-  if (key === "all") return undefined;
-  if (key === "day") {
-    now.setHours(0, 0, 0, 0);
-    return now.getTime();
-  }
-  if (key === "week") return now.getTime() - 7 * 24 * 3600 * 1000;
-  // month
-  return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-}
-
-function parseRange(v: string | undefined): RangeKey {
-  if (v === "day" || v === "week" || v === "month" || v === "all") return v;
-  return "month";
-}
-
 const emptyStyle =
   "mx-auto max-w-3xl rounded-xl bg-surface-container-lowest p-12 text-center shadow-[0_1px_2px_0_rgba(15,23,42,0.04)] border border-outline-variant/30";
 
@@ -50,11 +24,20 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const requestedId = first(sp.acc);
   const range = parseRange(first(sp.range));
-  const sinceMs = rangeStartMs(range);
 
   const accounts = await prisma.account.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, login: true },
+    select: {
+      id: true,
+      name: true,
+      login: true,
+      broker: true,
+      server: true,
+      cent: true,
+      currency: true,
+      balance: true,
+      equity: true,
+    },
   });
 
   if (accounts.length === 0) {
@@ -85,29 +68,43 @@ export default async function DashboardPage({
 
   // ---- pilih akun aktif ----
   const requested = accounts.find((a) => a.id === requestedId);
-  let activeId = requested?.id ?? accounts[0].id;
+  let active = requested ?? accounts[0];
 
-  // cek data penuh (tanpa rentang) untuk fallback akun pertama yang berisi data
-  let allData = await loadAccountMetrics(activeId);
-  if ((!allData || allData.metrics.equityCurve.length === 0) && accounts.length > 1) {
-    for (const a of accounts) {
-      const alt = await loadAccountMetrics(a.id);
-      if (alt && alt.metrics.equityCurve.length > 0) {
-        allData = alt;
-        activeId = a.id;
-        break;
-      }
+  // Fallback akun berisi data: cek keberadaan snapshot per akun (indexed,
+  // berhenti di baris pertama) — bukan memuat metrik tiap akun.
+  if (accounts.length > 1) {
+    const flags = await Promise.all(
+      accounts.map(async (a) => ({
+        id: a.id,
+        hasData: Boolean(
+          await prisma.snapshot.findFirst({
+            where: { accountId: a.id },
+            select: { id: true },
+          })
+        ),
+      }))
+    );
+    const hasData = new Set(flags.filter((f) => f.hasData).map((f) => f.id));
+    if (!hasData.has(active.id)) {
+      const alt = accounts.find((a) => hasData.has(a.id));
+      if (alt) active = alt;
     }
   }
-  if (requestedId && activeId !== requestedId) {
-    redirect(`/?acc=${activeId}`);
+  if (requestedId && active.id !== requestedId) {
+    redirect(`/?acc=${active.id}`);
   }
-  if (!allData) return null;
-  const cent = allData.cent;
-  const accMeta = allData.raw;
-  const active = accounts.find((a) => a.id === activeId) ?? accounts[0];
 
-  if (allData.metrics.equityCurve.length === 0) {
+  const data = await loadDashboardData(
+    active.id,
+    range,
+    active.balance != null && active.equity != null
+      ? { balance: active.balance, equity: active.equity }
+      : undefined
+  );
+  const cent = active.cent;
+  const accMeta = active;
+
+  if (!data.hasAnySnapshot) {
     return (
       <div className="px-6">
         <div className={emptyStyle}>
@@ -130,34 +127,10 @@ export default async function DashboardPage({
     );
   }
 
-  // ---- data rentang (untuk kartu & kurva) ----
-  const windowData =
-    sinceMs === undefined
-      ? allData
-      : ((await loadAccountMetrics(activeId, sinceMs)) ?? allData);
-
-  const m = windowData.metrics;
-  const mAll = allData.metrics;
-  const hasRangeData = windowData.metrics.equityCurve.length > 0;
-
-  const positions = await prisma.position.findMany({
-    where: { accountId: activeId },
-    orderBy: { openTime: "desc" },
-    select: {
-      id: true,
-      ticket: true,
-      symbol: true,
-      type: true,
-      volume: true,
-      priceOpen: true,
-      priceCurrent: true,
-      sl: true,
-      tp: true,
-      profit: true,
-      swap: true,
-      openTime: true,
-    },
-  });
+  const m = data.metrics;
+  const mAll = data.monthlyAll;
+  const hasRangeData = m.equityCurve.length > 0;
+  const positions = data.positions;
 
   const lotsLabel = {
     day: "Lots Hari Ini",
@@ -169,8 +142,8 @@ export default async function DashboardPage({
   const winCount = Math.round(((m.winRatePct ?? 0) / 100) * m.totalTrades);
   const lossCount = m.totalTrades - winCount;
 
-  const open = windowData.openSummary;
-  const chartPoints = windowData.metrics.equityCurve;
+  const open = data.openSummary;
+  const chartPoints = m.equityCurve;
   const chartFirst = chartPoints[0]?.t;
   const chartLast = chartPoints[chartPoints.length - 1]?.t;
   const fmtStamp = (t?: number) =>
@@ -197,10 +170,10 @@ export default async function DashboardPage({
 
   const snapshot: DashboardSnapshotData = {
     account: {
-      name: allData.name,
-      broker: allData.broker,
-      login: allData.login,
-      server: allData.server ?? "",
+      name: active.name,
+      broker: active.broker,
+      login: active.login,
+      server: active.server ?? "",
       cent,
     },
     rangeLabel: RANGES.find((r) => r.key === range)?.label ?? "Bulan Ini",
@@ -214,7 +187,7 @@ export default async function DashboardPage({
       totalTrades: m.totalTrades,
       lots: m.totalLots,
     },
-    monthly: mAll.monthly.map((r) => ({
+    monthly: mAll.map((r) => ({
       month: r.month,
       lots: r.lots,
       trades: r.trades,
@@ -222,7 +195,8 @@ export default async function DashboardPage({
       profit: r.profit,
       balance: r.balance ?? 0,
     })),
-    growth: allData.growthDD.map((g) => ({
+    // Kurva snapshot mengikuti rentang aktif, sama seperti chart dashboard.
+    growth: data.growthDD.map((g) => ({
       t: g.t,
       growthPct: g.growthPct,
       ddPct: g.ddPct,
@@ -245,13 +219,13 @@ export default async function DashboardPage({
               </span>
             </div>
             <p className="flex flex-wrap items-center gap-2 truncate font-body-sm text-body-sm text-on-surface-variant sm:font-body-md sm:text-body-md">
-              <span className="font-medium text-on-surface">{allData.name}</span>
+              <span className="font-medium text-on-surface">{active.name}</span>
               <span className="h-1 w-1 rounded-full bg-outline-variant" />
               <span className="tnum font-label-tabular text-label-tabular font-medium text-on-surface">
-                {allData.login}
+                {active.login}
               </span>
               <span className="hidden h-1 w-1 rounded-full bg-outline-variant sm:inline" />
-              <span className="hidden sm:inline">{allData.server}</span>
+              <span className="hidden sm:inline">{active.server}</span>
             </p>
           </div>
 
@@ -262,6 +236,7 @@ export default async function DashboardPage({
                 <Link
                   key={r.key}
                   href={rangeHref(r.key)}
+                  prefetch
                   className={`rounded px-3 py-1 font-label-caps text-label-caps transition-colors ${
                     range === r.key
                       ? "bg-surface-container-lowest text-on-surface shadow-sm"
@@ -333,16 +308,16 @@ export default async function DashboardPage({
                   winRate: r.winRate,
                   profit: r.profit,
                 })),
-                monthlyAll: mAll.monthly.map((r) => ({
+                monthlyAll: mAll.map((r) => ({
                   month: r.month,
                   lots: r.lots,
                   trades: r.trades,
                   winRate: r.winRate,
                   profit: r.profit,
                 })),
-                equityCurve: windowData.metrics.equityCurve,
-                growthDD: windowData.growthDD,
-                symbolStats: windowData.symbolStats,
+                equityCurve: m.equityCurve,
+                growthDD: data.growthDD,
+                symbolStats: data.symbolStats,
                 cent,
                 currency: accMeta?.currency,
                 rangeLabel: RANGES.find((r) => r.key === range)?.label ?? "Bulan Ini",
@@ -483,7 +458,7 @@ export default async function DashboardPage({
                     )}
                   </div>
                   <Link
-                    href={`/positions?acc=${activeId}`}
+                    href={`/positions?acc=${active.id}`}
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 font-body-md text-body-md font-semibold text-on-primary transition-colors hover:bg-primary-container"
                   >
                     Lihat Detail
@@ -511,7 +486,7 @@ export default async function DashboardPage({
                     </div>
                   </div>
                   <div className="pt-3">
-                    <GrowthDrawdown points={windowData.growthDD} />
+                    <GrowthDrawdown points={data.growthDD} />
                   </div>
                 </div>
 
@@ -530,12 +505,12 @@ export default async function DashboardPage({
                     </span>
                   </div>
                   <div className="flex flex-col gap-4 pt-4">
-                    {windowData.symbolStats.length === 0 ? (
+                    {data.symbolStats.length === 0 ? (
                       <p className="py-6 text-center font-body-sm text-body-sm text-on-surface-variant">
                         Belum ada trade tertutup di rentang ini.
                       </p>
                     ) : (
-                      windowData.symbolStats.map((s) => (
+                      data.symbolStats.map((s) => (
                         <div key={s.symbol} className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between font-body-sm text-body-sm">
                             <div className="flex items-center gap-2">
@@ -621,7 +596,7 @@ export default async function DashboardPage({
                     Seluruh riwayat
                   </span>
                 </div>
-                {mAll.monthly.length > 0 ? (
+                {mAll.length > 0 ? (
                   <div className="overflow-x-auto pt-2">
                     <table className="w-full text-left">
                       <thead>
@@ -637,7 +612,7 @@ export default async function DashboardPage({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-container-low font-label-tabular text-body-sm">
-                        {[...mAll.monthly].reverse().map((row) => (
+                        {[...mAll].reverse().map((row) => (
                           <tr key={row.month} className="hover:bg-surface-container-low/50">
                             <td className="py-3 pr-4 font-medium text-on-surface">
                               {monthLabel(row.month)}
